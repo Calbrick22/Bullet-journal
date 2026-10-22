@@ -1,0 +1,18 @@
+# Local data and secrets: never commit
+config.toml
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+data/
+calendar-export/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Dev tooling output
+screenshots/
+node_modules/

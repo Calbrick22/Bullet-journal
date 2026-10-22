@@ -1,0 +1,1 @@
+tzdata>=2024.1        # IANA timezone data; Windows doesn't ship it
