@@ -16,3 +16,7 @@ __pycache__/
 # Dev tooling output
 screenshots/
 node_modules/
+
+# tasteskill working files (the dealt sheet is kept)
+.taste-skill/*
+!.taste-skill/app/

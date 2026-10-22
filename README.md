@@ -22,6 +22,9 @@ Requires Python 3.10+. The app itself (milestone 3) will start with `py run.py`.
 | `bujo/holidays.py` | England & Wales bank holidays, calculated (works offline, any year) |
 | `bujo/db.py` | SQLite connection and versioned schema |
 | `bujo/journal.py` | Entries, done/cancel/move, carry-over |
+| `bujo/static/css/tokens.css` | The design tokens: the only place colours and sizes are defined |
+| `bujo/static/mock/week.html` | Static weekly-spread mock (open it straight in a browser) |
+| `docs/design.md` | The dealt style, tokens and journal conventions |
 | `docs/plan.md` | Milestones and decisions |
 | `docs/calendar.md` | Power Automate → OneDrive calendar export setup |
 

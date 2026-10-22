@@ -1,0 +1,81 @@
+/* tokens.css: the one source of colour, type and spacing for every screen.
+   Style: tasteskill "editorial-greeting" (light), seed 635589795, dealt 2026-10-22.
+   See docs/design.md before changing anything here. */
+
+@font-face { font-family: "Instrument Sans"; font-style: normal; font-weight: 400 600; font-display: swap;
+  src: url("../fonts/instrument-sans-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Instrument Sans"; font-style: normal; font-weight: 400 600; font-display: swap;
+  src: url("../fonts/instrument-sans-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Instrument Serif"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("../fonts/instrument-serif-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+:root {
+  /* grounds: white page, panels one step off white, one white inner card (today) */
+  --ground: #ffffff;
+  --surface: #f9f9f9;
+  --raised: #ffffff;
+  --active: #ececea;          /* active nav pill */
+  --border: #eaeaea;
+  --rule: #ececea;            /* row rules inside a #f9f9f9 panel */
+  --control: #d9d9d6;
+
+  /* ink */
+  --text: #1f201d;
+  --muted: #636361;           /* 5.6:1 on --surface */
+  --faint: #6b6b69;
+  --primary: #1f201d;         /* the one filled button: near-black */
+  --primary-ink: #ffffff;
+
+  /* the one hue: deep teal. Today, focus, the selected thing. Under 2% of pixels */
+  --accent: #1b6e66;
+
+  /* journal tints: pale, each meaning one kind of thing, never decoration */
+  --meeting-bg: #eaf2f8;      /* Outlook meetings (read-only) */
+  --meeting-edge: #d5e4ef;
+  --meeting-ink: #1c4a6e;     /* 8.4:1 on --meeting-bg */
+  --unplaced-bg: #eaf4f1;     /* this week, no day yet */
+  --unplaced-edge: #d3e8e2;
+
+  /* status */
+  --positive: #2e7d32;
+  --negative: #b42318;
+  --warning: #92400e;
+  --pill-positive-bg: #dcfae5; --pill-positive-ink: #04250e;
+  --pill-negative-bg: #fdecea; --pill-negative-ink: #7a1d14;
+  --pill-warning-bg: #fff4d6;  --pill-warning-ink: #8a3c0b;   /* carried over */
+  --pill-neutral-bg: #efefed;  --pill-neutral-ink: #3d3d3a;
+
+  /* charts (none yet) */
+  --chart-1: #1f201d; --chart-2: #1b6e66; --chart-3: #8c8c88;
+  --grid: #ececea; --axis-ink: var(--muted); --ink: var(--text);
+
+  /* type: Instrument Sans for everything; Instrument Serif for the greeting only */
+  --font: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --serif: "Instrument Serif", Georgia, serif;
+  /* signifiers are text. ○ is not in Instrument Sans, so it falls back to a
+     symbol face; the fixed-width slot keeps every column aligned regardless */
+  --sig-font: "Instrument Sans", "Segoe UI Symbol", "DejaVu Sans", sans-serif;
+  --fs-title: 48px;           /* serif greeting; 28px on a phone */
+  --fs-section: 14px;
+  --fs-body: 14px;
+  --fs-small: 12px;
+
+  /* shape and space: soft radius, pill controls, one 16px gutter */
+  --radius-card: 22px;
+  --radius-row: 12px;         /* row cards inside a panel: nested radius steps down */
+  --radius-control: 999px;
+  --sidebar-width: 224px;
+  --column: 1100px;           /* 12 x 77 + 11 x 16 */
+  --gap: 16px;
+  --pad: 24px;
+  --card-pad: 16px;
+  --control-height: 38px;
+  --nav-row: 32px;
+  --row-height: 48px;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-press: 120ms; --t-hover: 150ms; --t-ui: 200ms;
+}

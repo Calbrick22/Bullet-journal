@@ -1,0 +1,118 @@
+/* journal.css: the journal's own screens, built on app.css. Tokens only; no raw colours.
+
+   Grid: one centred 1100px column, 12 x 77px + 11 x 16px = 1100.
+   Spread: one ruled panel, 6 equal columns (Mon-Fri + "No day yet"), like a notebook spread.
+   Lower row: 6 + 6 -> 542 + 16 + 542 = 1100; its centre gutter (x 542-558) holds the spread's
+   middle rule (x 550), so the one internal edge of the lower row meets one above it. */
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- shell ---------- */
+.sidebar { border-right: 1px solid var(--border); background: var(--ground); }
+.product { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; }
+.product .mark { width: 24px; height: 24px; flex: none; }
+.product-name { font-weight: 600; }
+.product-scope { font-size: var(--fs-small); color: var(--muted); line-height: 16px; }
+.menu-close { display: none; margin-left: auto; }
+.nav-meta { margin-left: auto; font-size: var(--fs-small); color: var(--faint); font-variant-numeric: tabular-nums; }
+.sync { display: grid; gap: 2px; padding: 12px 8px 4px; font-size: var(--fs-small); color: var(--muted); }
+.sync .card-link { font-size: var(--fs-small); justify-self: start; }
+.phone-bar { display: none; }
+
+.canvas { padding: 56px var(--pad) 64px; }
+.column { max-width: var(--column); margin: 0 auto; }
+
+/* ---------- title row: the greeting and the one job (quick add) ---------- */
+.title-row { align-items: flex-end; margin-bottom: 32px; gap: 24px; }
+.title-row .greeting { font-family: var(--serif); font-size: var(--fs-title); line-height: 1.05; font-weight: 400; letter-spacing: -0.01em; }
+.title-row .sub { margin-top: 10px; color: var(--muted); max-width: 62ch; }
+.composer { display: flex; align-items: center; gap: 8px; flex: none; }
+.composer .input { width: 220px; height: var(--control-height); }
+.composer .btn { height: var(--control-height); padding: 0 16px; }
+.composer .segmented { border-radius: var(--radius-control); padding: 3px; }
+.composer .segmented button { height: 32px; border-radius: var(--radius-control); padding: 0 12px; }
+.composer .segmented .sig { margin-right: 2px; }
+kbd { font: inherit; font-size: var(--fs-small); opacity: .7; }
+
+/* ---------- signifiers: content, set in the text face in a fixed slot ---------- */
+.sig { display: inline-block; width: 14px; flex: none; text-align: center; font-family: var(--sig-font); }
+
+/* ---------- the spread: one panel, columns divided by rules ---------- */
+.spread { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden; }
+.day { min-width: 0; padding: var(--card-pad); border-left: 1px solid var(--border); }
+.day:first-child { border-left: 0; }
+.day > header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.day h2 { font-size: var(--fs-section); font-weight: 600; }
+.day .meta { font-size: var(--fs-small); color: var(--muted); }
+.day.past h2 { color: var(--muted); }
+/* today: the one white card, inset 4px in its column, edged in the accent, labelled in words.
+   Its own radius steps down from the panel's (22 - 4), so no corner is ever clipped */
+.day.today { margin: 4px; padding: calc(var(--card-pad) - 4px); border: 1px solid var(--accent); border-radius: calc(var(--radius-card) - 4px); background: var(--raised); }
+.day.today + .day { border-left: 0; }
+.today-label { font-size: var(--fs-small); font-weight: 600; color: var(--accent); }
+/* this week, no day yet: its own pale tint */
+.day.unplaced { background: var(--unplaced-bg); }
+
+/* meetings: time-led row cards in their own tint. Told apart from tasks by
+   shape (a filled block that starts with a time, no signifier), not by colour alone */
+.meetings { display: grid; gap: 6px; margin-bottom: 14px; }
+.meeting { display: grid; padding: 6px 10px; border-radius: var(--radius-row); background: var(--meeting-bg); border: 1px solid var(--meeting-edge); color: var(--meeting-ink); }
+.meeting .time { font-size: var(--fs-small); line-height: 16px; }
+.meeting .subject { font-size: var(--fs-small); line-height: 16px; font-weight: 500; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* entries */
+.entries { display: grid; gap: 8px; }
+.entry { display: grid; grid-template-columns: 14px minmax(0, 1fr); column-gap: 6px; line-height: 20px; }
+.entry .text { overflow-wrap: anywhere; }
+.entry.done .text, .entry.migrated .text, .entry.scheduled .text, .entry.cancelled .text { color: var(--muted); }
+.entry.done .sig, .entry.migrated .sig, .entry.scheduled .sig, .entry.cancelled .sig { color: var(--muted); }
+.entry.cancelled .text { text-decoration: line-through; text-decoration-color: var(--faint); }
+.entry .moved { font-size: var(--fs-small); color: var(--faint); white-space: nowrap; }
+.entry .pill { height: 20px; padding: 0 7px; vertical-align: 1px; }
+
+/* ---------- the lower row ---------- */
+.lower { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); margin-top: 40px; align-items: start; }
+.lower .panel { padding: var(--card-pad) 20px; border-radius: var(--radius-card); background: var(--surface); }
+.lower .panel > header { margin-bottom: 4px; }
+.ahead, .rolling { grid-column: span 6; }
+.lower .row { min-height: 44px; padding: 10px 0; }
+.lower .row + .row { border-top-color: var(--rule); }
+.ahead-row .when { flex: none; width: 92px; color: var(--muted); }
+.ahead-row .entry { flex: 1; }
+.roll-row { align-items: flex-start; justify-content: space-between; }
+.roll-main { display: grid; min-width: 0; }
+.trail { font-size: var(--fs-small); color: var(--warning); line-height: 18px; }
+.card-link.plain::after { content: none; }
+.ahead-row .pill { margin-left: auto; }
+
+/* ---------- tablet: three days to a row ---------- */
+@media (max-width: 1180px) {
+  .spread { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .day:nth-child(3n + 1) { border-left: 0; }
+  .day:nth-child(n + 4) { border-top: 1px solid var(--border); }
+  .day.today { border-top: 1px solid var(--accent); }
+  .title-row { flex-wrap: wrap; }
+}
+
+/* ---------- phone: nav folds into a 48px bar, today first ---------- */
+@media (max-width: 860px) {
+  .phone-bar { display: flex; align-items: center; gap: 8px; height: 48px; margin: -8px 0 16px; }
+  .phone-title { font-weight: 600; }
+  .menu-close { display: inline-flex; }
+  .canvas { padding: 8px 16px 48px; }
+  .menu-toggle { margin-left: -12px; }
+}
+@media (max-width: 640px) {
+  .title-row .greeting { font-size: 28px; }
+  .composer { flex-wrap: wrap; width: 100%; }
+  .composer .segmented { width: 100%; }
+  .composer .segmented button { flex: 1; height: 38px; }
+  .composer .input { flex: 1; width: auto; height: 44px; }
+  .composer .btn { height: 44px; }
+  .spread { grid-template-columns: minmax(0, 1fr); }
+  .day { border-left: 0; border-top: 1px solid var(--border); }
+  .day.today { order: -1; border: 1px solid var(--accent); }
+  .ahead, .rolling { grid-column: 1 / -1; }
+  .entry { line-height: 22px; }
+}
