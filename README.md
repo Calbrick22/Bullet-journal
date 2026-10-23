@@ -3,26 +3,41 @@
 A small, local-first bullet journal for planning weeks and days, with Outlook
 meetings shown alongside tasks (read-only). One user, one SQLite file, no server.
 
-## Setup (Windows, PowerShell)
+## Get it running on Windows
 
-Needs Python 3.11+ (`py --version`).
+1. **Get the code onto your laptop.** On the GitHub page, click the green **Code**
+   button → **Download ZIP**, then right-click the ZIP → **Extract All…** somewhere
+   you'll keep it, e.g. `Documents\bullet-journal`. (With Git installed you can
+   `git clone` instead, which makes updates a one-liner: `git pull`.)
+2. **Double-click `Start Journal.bat`** in that folder. The first time, it sets
+   things up (about a minute, needs the internet once). Then it opens the journal
+   in your browser. Leave the black window open while you use it; close it to stop.
+3. **Show your Outlook meetings:** open `config.toml` (made on first run, in the same
+   folder) in Notepad and set `calendar_path` to your exported file. See
+   `docs/calendar.md`.
+
+Needs Python 3.11 or newer. Check with `py --version` in PowerShell.
+
+### From a terminal instead
+
+Python runs files relative to the folder you're *in*, so go to the project folder first:
 
 ```powershell
-py -m venv .venv
-.venv\Scripts\Activate.ps1
-py -m pip install -r requirements.txt
+cd "$HOME\Documents\bullet-journal"     # wherever you extracted it
+py -m venv .venv                         # once
+.venv\Scripts\python.exe -m pip install -r requirements.txt   # once, and after updates
+.venv\Scripts\python.exe run.py          # your journal
+.venv\Scripts\python.exe run.py --demo   # a throwaway sample journal to try things out
 ```
 
-## Run
+Tip: in File Explorer, open the folder, click the address bar, type `powershell` and
+press Enter. That opens PowerShell already in the right folder.
 
-```powershell
-py run.py            # your journal; opens http://127.0.0.1:8765 in the browser
-py run.py --demo     # a throwaway sample journal to try things out
-```
+Your data is one file, `data\journal.sqlite`. Copy it to back up. Settings live in
+`config.toml` (see `config.example.toml`). It's personal and never uploaded.
 
-Your data is one file, `data/journal.sqlite`. Copy it to back up. Optional settings go
-in `config.toml` (see `bujo/config.py`); it's git-ignored. To show your Outlook meetings,
-set up the export in `docs/calendar.md` and add its `calendar_path` there.
+Tests: `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`, then
+`.venv\Scripts\python.exe -m pytest`.
 
 ## Keyboard
 

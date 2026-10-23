@@ -1,0 +1,11 @@
+# Copy this file to config.toml (same folder) and edit it.
+# config.toml is personal and never uploaded to GitHub.
+
+# Where the Power Automate calendar export lands on this laptop (OneDrive keeps it in sync).
+# Keep the single quotes: they let Windows backslashes through unchanged.
+# calendar_path = 'C:\Users\you\OneDrive - Your Org\Documents\Bullet Journal\calendar.json'
+
+# Where your journal is stored (one file; copy it to back up).
+# db_path = "data/journal.sqlite"
+
+# port = 8765
