@@ -7,6 +7,8 @@ that redirects back, so the basics work without JavaScript; static/js/app.js
 upgrades posts to in-place updates and adds the keyboard shortcuts.
 """
 
+import os
+import threading
 from collections.abc import Callable
 from contextlib import closing
 from datetime import date, datetime
@@ -27,9 +29,15 @@ SHOW_COOKIE = "week_show"
 PREFIXES = {"* ": "event", "- ": "note", "– ": "note"}
 
 
+def _stop_soon() -> None:
+    # Let the "stopped" page reach the browser, then end the process.
+    threading.Timer(0.5, os._exit, args=(0,)).start()
+
+
 def create_app(db_path: Path, today: Callable[[], date] = dates.local_today,
                calendar: calmod.CalendarSource | None = None,
-               now: Callable[[], datetime] = dates.utc_now) -> FastAPI:
+               now: Callable[[], datetime] = dates.utc_now,
+               quit: Callable[[], None] = _stop_soon) -> FastAPI:
     app = FastAPI(title="Journal", docs_url=None, redoc_url=None, openapi_url=None)
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
@@ -318,6 +326,15 @@ def create_app(db_path: Path, today: Callable[[], date] = dates.local_today,
         except OSError as e:
             raise HTTPException(400, str(e))
         return back(next)
+
+    @app.post("/settings/quit", response_class=HTMLResponse)
+    def quit_app():
+        quit()
+        return HTMLResponse(
+            '<!doctype html><html lang="en-GB"><meta charset="utf-8"><title>Journal stopped</title>'
+            '<link rel="stylesheet" href="/static/css/tokens.css"><link rel="stylesheet" href="/static/css/app.css">'
+            '<body style="display:grid;place-items:center;min-height:100svh"><main><h1>The journal has stopped</h1>'
+            '<p>You can close this tab. Start it again from Bullet Journal.exe or Start Journal.bat.</p></main></body></html>')
 
     @app.post("/settings/backup")
     def back_up_now(next: str = Form("/settings")):

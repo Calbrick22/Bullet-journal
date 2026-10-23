@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 
-from .config import ROOT
+from .config import FROZEN, ROOT
 
 NAME = "Bullet Journal.cmd"
 
@@ -35,14 +35,18 @@ def is_enabled() -> bool:
     return bool(p and p.exists())
 
 
-def script(python: Path = Path(sys.executable), root: Path = ROOT) -> str:
-    windowless = python.with_name("pythonw.exe")
-    exe = windowless if windowless.exists() else python
+def script(python: Path = Path(sys.executable), root: Path = ROOT, frozen: bool = FROZEN) -> str:
+    if frozen:
+        # The packaged app: start the .exe itself (it has no console window)
+        command = f'start "" "{python}"'
+    else:
+        windowless = python.with_name("pythonw.exe")
+        command = f'start "" "{windowless if windowless.exists() else python}" run.py'
     return (
         "@echo off\r\n"
         "rem Starts the bullet journal at login. Turn off in the journal's Settings.\r\n"
         f'cd /d "{root}"\r\n'
-        f'start "" "{exe}" run.py\r\n'
+        f"{command}\r\n"
     )
 
 

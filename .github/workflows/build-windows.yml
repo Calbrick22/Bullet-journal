@@ -1,0 +1,75 @@
+# Builds "Bullet Journal.exe" (Python bundled inside) on a Windows machine and
+# publishes it as the "windows-latest" release: Bullet-Journal-windows.zip.
+name: Build Windows app
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "docs/**", ".taste-skill/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to publish the release
+
+concurrency:
+  group: build-windows
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt pyinstaller
+
+      - name: Test
+        run: python -m pytest -q
+
+      - name: Build the app
+        run: python packaging/build_exe.py
+
+      - name: Check the built app starts
+        shell: pwsh
+        run: |
+          $app = Start-Process -FilePath "dist\Bullet Journal\Bullet Journal.exe" -ArgumentList "--demo","--no-browser","--port","8799" -PassThru
+          $ok = $false
+          foreach ($i in 1..60) {
+            try { if ((Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8799/healthz).Content -eq "bullet-journal") { $ok = $true; break } } catch {}
+            Start-Sleep -Milliseconds 500
+          }
+          foreach ($p in "/today", "/week", "/backlog", "/notes", "/settings") {
+            $r = Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:8799$p"
+            if ($r.StatusCode -ne 200) { throw "$p returned $($r.StatusCode)" }
+          }
+          Stop-Process -Id $app.Id -Force
+          if (-not $ok) { Get-Content "dist\Bullet Journal\data\journal.log" -ErrorAction SilentlyContinue; throw "The app didn't start" }
+          Remove-Item -Recurse -Force "dist\Bullet Journal\data" -ErrorAction SilentlyContinue
+
+      - name: Zip
+        shell: pwsh
+        run: |
+          Remove-Item dist\*.zip -ErrorAction SilentlyContinue
+          Compress-Archive -Path "dist\Bullet Journal" -DestinationPath dist\Bullet-Journal-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bullet-Journal-windows
+          path: dist/Bullet-Journal-windows.zip
+
+      - name: Publish as the windows-latest release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete windows-latest --yes --cleanup-tag || true
+          gh release create windows-latest dist/Bullet-Journal-windows.zip \
+            --target "$GITHUB_SHA" --title "Bullet Journal for Windows (latest)" \
+            --notes "Built from ${GITHUB_SHA::7}. Unzip, open the folder and double-click Bullet Journal.exe. See READ ME FIRST.txt inside."

@@ -9,12 +9,15 @@ Every setting has a default, so the file is optional:
 """
 
 import os
+import sys
 import tomllib
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+FROZEN = getattr(sys, "frozen", False)   # running as the packaged Bullet Journal.exe
+# Your data and config.toml live next to run.py, or next to the .exe when packaged
+ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent.parent
 
 
 @dataclass(frozen=True)

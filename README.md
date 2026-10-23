@@ -18,6 +18,18 @@ meetings shown alongside tasks (read-only). One user, one SQLite file, no server
 
 Needs Python 3.11 or newer. Check with `py --version` in PowerShell.
 
+### Without Python (the packaged app)
+
+For a computer without Python: every push to `main` builds a Windows version with
+Python bundled inside (`.github/workflows/build-windows.yml`). Download
+**Bullet-Journal-windows.zip** from the repo's *Releases → windows-latest*, unzip
+it somewhere permanent, and double-click **Bullet Journal.exe**. The included
+`READ ME FIRST.txt` covers the first-run warning, where the data lives, and updating.
+It runs with no console window: stop it from *Settings → Stop the journal*.
+On a work laptop, check with IT before running it.
+
+To build it yourself: `pip install pyinstaller`, then `python packaging/build_exe.py`.
+
 ### From a terminal instead
 
 Python runs files relative to the folder you're *in*, so go to the project folder first:

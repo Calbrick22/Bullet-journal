@@ -1,0 +1,34 @@
+Bullet Journal
+==============
+
+A personal bullet journal that runs on this computer only. Nothing is sent anywhere.
+
+Starting it
+-----------
+1. Keep this whole folder together (Bullet Journal.exe needs the _internal folder next to it).
+   Put it somewhere permanent, e.g. Documents\Bullet Journal.
+2. Double-click "Bullet Journal.exe". Your browser opens the journal.
+   The first time, Windows may say "Windows protected your PC" because the app isn't signed:
+   click "More info", then "Run anyway". If your work laptop blocks it outright, ask IT.
+3. There is no window: the journal runs quietly in the background.
+   To stop it: Settings > Stop the journal > Quit journal.
+   To open it again: double-click Bullet Journal.exe (it opens the one already running).
+
+Your data
+---------
+Everything is in the "data" folder created next to Bullet Journal.exe:
+  data\journal.sqlite   your journal (one file; copy it to back up)
+  data\backups\         a copy is made automatically each day (last 14 kept)
+  data\journal.log      messages, if something goes wrong
+
+Settings
+--------
+Start with Windows, working days, leave and meeting categories are in the app's Settings.
+For Outlook meetings, copy config.example.toml to config.toml (same folder), open it in
+Notepad and set calendar_path. "Outlook calendar set-up.md" in this folder explains the
+Power Automate flow that exports your meetings.
+
+Updating
+--------
+Quit the journal, then replace this folder's contents with the new version
+EXCEPT the "data" folder and config.toml, which hold your journal and settings.
