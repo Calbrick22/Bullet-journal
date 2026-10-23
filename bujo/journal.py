@@ -45,7 +45,9 @@ class Entry:
         return SIGNIFIERS.get((self.kind, self.state), SIGNIFIERS[(self.kind, "open")])
 
     @property
-    def week(self) -> str:
+    def week(self) -> str | None:
+        if self.entry_list:
+            return None
         return self.entry_week or dates.week_key(self.entry_date)
 
     @classmethod

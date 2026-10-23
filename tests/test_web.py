@@ -376,3 +376,38 @@ def test_startup_toggle_off_windows(env):
     client, _, _ = env
     assert "Available when the journal runs on Windows" in client.get("/settings").text
     assert client.post("/settings/startup", data={"on": "1"}).status_code == 400
+
+
+def test_pages_render_after_moving_day_tasks_onto_lists(env):
+    """Regression: a day task moved to Backlog/Ongoing crashed the day and backlog pages."""
+    client, clock, path = env
+    for t in ("To backlog", "To ongoing", "Carried then shelved"):
+        add(client, t, target="d:2026-10-21")
+    clock.d = date(2026, 10, 22)
+    client.get("/")                                   # carry-over: all three now on Thu, 2nd day
+    a, b, c = only(path, "2026-10-22")
+    assert client.post(f"/entries/{a.id}/move", data={"to": "backlog"}).status_code == 200
+    assert client.post(f"/entries/{b.id}/move", data={"to": "ongoing"}).status_code == 200
+    assert client.post(f"/entries/{c.id}/move", data={"to": "backlog"}).status_code == 200
+    day = client.get("/day/2026-10-22")
+    assert day.status_code == 200 and "to Backlog" in day.text and "to Ongoing" in day.text
+    assert client.get("/day/2026-10-21").status_code == 200
+    backlog = client.get("/backlog")
+    assert backlog.status_code == 200 and "To backlog" in backlog.text and "2nd day" not in backlog.text
+    for url in ("/week/2026-W43?show=all", "/week/2026-W43", "/future"):
+        assert client.get(url).status_code == 200
+    # ...and back out again onto a day
+    with db(path) as conn:
+        [x, y] = j.entries_in_list(conn, "backlog")
+    client.post(f"/entries/{x.id}/move", data={"to": "date", "on": "2026-10-23"})
+    assert client.get("/day/2026-10-23").status_code == 200
+
+
+def test_backlog_preview_on_todays_page_only(env):
+    client, _, _ = env
+    for i in range(7):
+        client.post("/entries", data={"kind": "task", "text": f"Someday {i}", "target": "l:backlog"})
+    today = client.get("/day/2026-10-22").text
+    assert "Someday 0" in today and "Someday 4" in today and "Someday 5" not in today
+    assert "2 more in the backlog" in today and today.count(">Start<") == 5
+    assert "Someday 0" not in client.get("/day/2026-10-23").text

@@ -44,6 +44,17 @@
       <p class="quiet">Nothing in progress. Add with "Ongoing" in the box above, or start something from the <a href="/backlog">backlog</a>.</p>
       {% endif %}
     </section>
+    {% if is_today %}
+    <section class="panel backlog-peek" aria-labelledby="backlog-h">
+      <header><h2 id="backlog-h"><a href="/backlog">Backlog</a></h2>{% if backlog_total %}<span class="meta num">{{ backlog_total }}</span>{% endif %}</header>
+      {% if backlog %}
+      <ul class="entries">{% for r in backlog %}{{ entry(r, next, actions="start") }}{% endfor %}</ul>
+      {% if backlog_more %}<a class="card-link more" href="/backlog">{{ backlog_more }} more in the backlog</a>{% endif %}
+      {% else %}
+      <p class="quiet">Nothing waiting. Add with "Backlog" in the box above.</p>
+      {% endif %}
+    </section>
+    {% endif %}
     <section class="panel unplaced" aria-labelledby="unplaced-h">
       <header><h2 id="unplaced-h">{{ week_label }}, no day yet</h2>{% if unplaced %}<span class="meta num">{{ unplaced | length }}</span>{% endif %}</header>
       {% if unplaced %}

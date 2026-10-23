@@ -358,3 +358,8 @@ label.check { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; 
   .list-rows .entry { grid-template-columns: 16px minmax(0, 1fr); }
   .list-rows .acts { grid-column: 2; }
 }
+
+/* today's backlog preview: one Start action per row, always visible */
+.backlog-peek .entry { grid-template-columns: 16px minmax(0, 1fr) auto; align-items: start; }
+.backlog-peek .acts { opacity: 1; }
+.backlog-peek .more { margin-top: 12px; font-size: var(--fs-small); }

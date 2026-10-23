@@ -27,7 +27,13 @@
     {%- if r.carried %} <span class="pill warn">{{ r.day_count }}</span>{% endif %}
     {%- if trail and r.carried %}<span class="trail">{{ r.trail | join(" › ") }}</span>{% endif %}
   </span>
-  {%- if actions and e.state not in ("migrated", "scheduled") %}
+  {%- if actions == "start" %}
+  {%- if e.kind == "task" and e.state == "open" %}
+  <span class="acts start-only">
+    <button class="card-link plain" type="button" data-act="move" title="Start it: today, ongoing, a day or a week (m)">Start</button>
+  </span>
+  {%- endif %}
+  {%- elif actions and e.state not in ("migrated", "scheduled") %}
   <span class="acts">
     {%- if e.kind == "task" and e.state == "open" %}
     <button class="card-link plain" type="button" data-act="move" title="Move or reschedule (m)">{{ "Start" if e.entry_list == "backlog" else "Move" }}</button>

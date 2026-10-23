@@ -73,7 +73,7 @@ notes a **dash**. Every mark sits in the same fixed 16px slot, so text always li
 ## Backlog, ongoing and categories (milestone 6)
 
 - **Ongoing** uses the "no day yet" tint (pale teal): it's work without a day. It sits on
-  the day view's side column and beside the Backlog, which is the screen's main block (8 + 4).
+  the day view's side column (with a 5-row Backlog preview and Start, on today only) and beside the Backlog, which is the screen's main block (8 + 4).
 - **Meeting categories** take one of eight pastels, each a fill, a one-step-darker edge
   and dark text at about 7:1 or better: sky, mint, peach, butter, rose, sage, lime, aqua.
   Peach and butter are a step deeper than a typical pastel, and lime replaced sand,
@@ -93,6 +93,10 @@ notes a **dash**. Every mark sits in the same fixed 16px slot, so text always li
   48px. It drops to 28px on a phone.
 
 ## Gate log
+
+- Fix + backlog on today (day view): lint 0/0; inspect 0 FAIL, WARNs as before (title
+  size; `ragged-row`, the side column now holds four short lists). In-browser: day task →
+  Backlog and → Ongoing render with "to Backlog/Ongoing", Start from today's Backlog panel.
 
 - Milestone 6 (`--demo`): `lint.mjs --app` 0 FAIL / 0 WARN. `inspect.mjs --app` at
   1440/768/390 on all six screens: 0 FAIL. WARNs accepted: title size (all), day

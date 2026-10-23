@@ -9,6 +9,7 @@ from .calendar import Meeting
 from .journal import Entry
 
 AHEAD_ROWS = 4
+BACKLOG_ROWS = 5         # the backlog preview on today's page
 DONE_VISIBLE = timedelta(days=7)   # ticked ongoing tasks stay visible this long
 LIST_TARGETS = [("l:ongoing", "Ongoing"), ("l:backlog", "Backlog")]
 NEXT_ROWS = 5            # the day view's preview of the next working day
@@ -63,6 +64,8 @@ def duration(minutes: int) -> str:      # "3 h 30 m", "45 m", "2 h"
 
 def where(e: Entry, near: date) -> str:
     """Where an entry lives, as briefly as is clear from `near`."""
+    if e.entry_list:
+        return e.entry_list.capitalize()        # "Backlog", "Ongoing"
     if e.entry_week:
         return week_label(e.entry_week)
     if abs((e.entry_date - near).days) < 7:
@@ -101,7 +104,8 @@ def rows_for(conn, entries: list[Entry], near: date, today: date | None = None,
             src = sources[e.moved_from_id]
             row.note = f"planned on {src.entry_date.day} {src.entry_date:%b}" if src.entry_date else f"planned in {week_label(src.entry_week)}"
         if e.kind == "task" and e.state == "open":
-            if e.carry_count > 0:
+            # Lists aren't day-by-day, so their tasks never show a carry trail.
+            if e.carry_count > 0 and not e.entry_list:
                 chain = [x for x in j.history(conn, e.id) if x.carry_count <= e.carry_count]
                 here = e.entry_date or dates.week_monday(e.entry_week)
                 row.trail = [where(x, here) for x in chain]
@@ -414,6 +418,7 @@ def day_view(conn, d: date, today: date, now: datetime) -> dict:
         facts = f"{off} · " + facts
     nxt = cal.next_working_day(d)
     coming = j.entries_for_day(conn, nxt)
+    backlog = j.entries_in_list(conn, "backlog")
     return {
         "date": d, "title": long_day(d), "facts": facts, "is_today": d == today,
         "week_key": key, "week_label": f"Week {number}",
@@ -423,6 +428,8 @@ def day_view(conn, d: date, today: date, now: datetime) -> dict:
         "meetings": meeting_rows(ms, d, now, catmod.for_meetings(conn, ms)),
         "coming": rows_for(conn, coming, d)[:NEXT_ROWS], "coming_more": max(0, len(coming) - NEXT_ROWS),
         "ongoing": rows_for(conn, j.entries_in_list(conn, "ongoing", now - DONE_VISIBLE), d, today, cal),
+        "backlog": rows_for(conn, backlog[:BACKLOG_ROWS], d, today, cal) if d == today else [],
+        "backlog_more": max(0, len(backlog) - BACKLOG_ROWS), "backlog_total": len(backlog),
         "targets": [(f"d:{d.isoformat()}", short_day(d))] + LIST_TARGETS, "default_target": f"d:{d.isoformat()}",
         "phone_title": short_day(d),
     }
