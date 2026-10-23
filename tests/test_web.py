@@ -372,7 +372,11 @@ def test_backup_now(env):
     assert "journal-" in client.get("/settings").text
 
 
-def test_startup_toggle_off_windows(env):
+def test_startup_toggle_off_windows(env, monkeypatch, tmp_path):
+    # Pretend not to be on Windows, so this never touches a real Startup folder
+    from bujo import startup
+    monkeypatch.setattr(startup.sys, "platform", "linux")
+    monkeypatch.setenv("APPDATA", str(tmp_path))
     client, _, _ = env
     assert "Available when the journal runs on Windows" in client.get("/settings").text
     assert client.post("/settings/startup", data={"on": "1"}).status_code == 400
@@ -480,3 +484,16 @@ def test_note_details_only_for_notes(env):
     add(client, "A task")
     assert client.post(f"/notes/{note_id(path, 'A task')}/body", data={"body": "x"}).status_code == 400
     assert client.post(f"/notes/{note_id(path, 'A task')}/bookmark", data={"on": "1"}).status_code == 400
+
+
+
+def test_startup_toggle_on_windows_uses_the_startup_folder(env, monkeypatch, tmp_path):
+    from bujo import startup
+    monkeypatch.setattr(startup.sys, "platform", "win32")
+    monkeypatch.setenv("APPDATA", str(tmp_path))          # a stand-in, never the real one
+    client, _, _ = env
+    assert "Start the journal when I log in" in client.get("/settings").text
+    client.post("/settings/startup", data={"on": "1"})
+    assert startup.is_enabled() and str(tmp_path) in str(startup.script_path())
+    client.post("/settings/startup", data={})
+    assert not startup.is_enabled()
