@@ -20,3 +20,5 @@ node_modules/
 # tasteskill working files (the dealt sheet is kept)
 .taste-skill/*
 !.taste-skill/app/
+
+calendar_path = 'C:\Users\cbrick\OneDrive - AIIMI LIMITED\Documents\Bullet Journal\calendar.json'
