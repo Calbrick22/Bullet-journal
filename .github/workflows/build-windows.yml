@@ -31,7 +31,14 @@ jobs:
           python -m pip install -r requirements-dev.txt pyinstaller
 
       - name: Test
-        run: python -m pytest -q
+        shell: bash
+        run: |
+          # One line per failure, also raised as annotations so they show on the run page
+          set -o pipefail
+          python -m pytest -q -rf --tb=line 2>&1 | tee pytest.txt || {
+            grep -E "FAILED|ERROR|Error|assert" pytest.txt | head -40 | sed 's/^/::error::/'
+            exit 1
+          }
 
       - name: Build the app
         run: python packaging/build_exe.py

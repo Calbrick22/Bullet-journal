@@ -31,8 +31,9 @@ def test_startup_script_points_at_this_folder(tmp_path):
     py = tmp_path / "python.exe"
     py.write_text("")
     (tmp_path / "pythonw.exe").write_text("")
-    s = startup.script(py, Path("C:/Users/me/bullet-journal"))
-    assert 'cd /d "C:/Users/me/bullet-journal"' in s and "pythonw.exe" in s and s.endswith("run.py\r\n")
+    root = tmp_path / "bullet journal"
+    s = startup.script(py, root, frozen=False)
+    assert f'cd /d "{root}"' in s and "pythonw.exe" in s and s.endswith("run.py\r\n")
 
 
 def test_startup_on_windows_only(tmp_path, monkeypatch):
@@ -69,7 +70,8 @@ def test_frozen_root_is_next_to_the_exe(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "executable", str(tmp_path / "Bullet Journal.exe"))
     try:
         importlib.reload(config)
-        assert config.ROOT == tmp_path and config.Config().db_path == tmp_path / "data" / "journal.sqlite"
+        here = tmp_path.resolve()   # Windows may give the short (RUNNER~1) or long form of a path
+        assert config.ROOT == here and config.Config().db_path == here / "data" / "journal.sqlite"
     finally:
         monkeypatch.undo()
         importlib.reload(config)
