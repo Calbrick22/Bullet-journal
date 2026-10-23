@@ -9,7 +9,7 @@ import json
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
-from . import categories as cats, dates, journal as j
+from . import categories as cats, dates, journal as j, notes
 from .calendar import Meeting
 
 # Per weekday of the current week (0 = Monday): (kind, text, done_by_end_of_day)
@@ -88,6 +88,28 @@ def seed(conn, today: date) -> None:
     for subject, cat in (("Weekly ops stand-up", internal), ("Q4 planning", atlas), ("Ops review", atlas),
                          ("Vendor demo: Fieldline", atlas), ("Hiring sync", hiring), ("1:1 with Hannah", internal)):
         cats.tag(conn, Meeting("demo-seed", subject, stamp, stamp), cat.id)
+
+    # Notes with details, bookmarks and categories
+    def note_id(text):
+        return conn.execute("SELECT id FROM entries WHERE kind = 'note' AND text = ?", (text,)).fetchone()[0]
+    priya = note_id("Priya wants the regional split, not just totals")
+    notes.save_body(conn, priya, "<p>For the Q3 pack she needs:</p><ul><li>North, <strong>South</strong> and Wales "
+                    "separately</li><li>Same months as last year's pack</li><li>Totals on one slide, splits in the "
+                    "appendix</li></ul><p><em>Check with finance</em> before sending the draft.</p>")
+    notes.set_category(conn, priya, atlas.id)
+    notes.set_bookmark(conn, priya, True)
+    notes.save_body(conn, note_id("Ask about Q1 headcount"),
+                    "<p>Two open roles carried over from Q4. Ask whether they <u>count against Q1</u>.</p>")
+    notes.set_category(conn, note_id("Ask about Q1 headcount"), hiring.id)
+    for weeks_ago, text, body, cat in (
+        (1, "Ops review: actions", "<ol><li>Move stand-up to 09:30</li><li>Share the risk register weekly</li></ol>", internal),
+        (2, "Fieldline pricing tiers", "<p>Three tiers. <strong>Pro</strong> includes SSO. Annual billing only.</p>", atlas),
+        (3, "Interview loop for the analyst role", "<ul><li>Case study</li><li>Panel</li><li>Team chat</li></ul>", hiring),
+    ):
+        e = j.add_entry(conn, "note", text, on=monday - timedelta(weeks=weeks_ago) + timedelta(days=2))
+        notes.save_body(conn, e.id, body)
+        notes.set_category(conn, e.id, cat.id)
+        notes.set_bookmark(conn, e.id, True)
 
 
 # Meetings per weekday: (start, end, subject, location, showAs). Repeated each week.

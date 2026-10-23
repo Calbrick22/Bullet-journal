@@ -44,7 +44,7 @@ Tests: `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`, then
 `n` add (start with `*` for an event, `-` for a note) · `j`/`k` next/previous entry ·
 `x` or Space tick · `>` migrate to the next working day · `m` or `<` move to a date or
 week · `e` edit · `c` cancel/restore · `[`/`]` previous/next · `t` today · `w` week ·
-`f` future log · `b` backlog · `s` settings · `v` meetings / meetings and tasks ·
+`f` future log · `b` backlog · `o` notes · `s` settings · `v` meetings / meetings and tasks ·
 Enter on a meeting sets its category · `?` all shortcuts.
 
 ## Features at a glance
@@ -54,6 +54,10 @@ Enter on a meeting sets its category · `?` all shortcuts.
 - **Backlog** for things you'll do some time, **Ongoing** for work in progress that isn't
   tied to a day. Add to either from any add box; *Start* a backlog task when you're ready.
 - **Future log** for anything after this week, plus bank holidays and your leave.
+- **Notes with details:** every note gets a card under the day's entries; open it for a
+  page with bold, italic, underline, bullets and numbers (saves as you type). Bookmark
+  notes to keep the newest 10 in the sidebar; **All notes** groups them by week or by
+  category, or shows only bookmarks.
 - **Meeting categories** in pastel colours for timesheets: click a meeting to set one;
   every meeting with the same name follows. Manage, recolour and archive in Settings.
 - **Settings**: categories, working days, days off, start with Windows, backups
@@ -69,6 +73,7 @@ Tests: `py -m pip install -r requirements-dev.txt`, then `py -m pytest`.
 | `bujo/holidays.py` | England & Wales bank holidays, calculated (works offline, any year) |
 | `bujo/db.py` | SQLite connection and versioned schema |
 | `bujo/journal.py` | Entries, done/cancel/move, carry-over |
+| `bujo/notes.py` | Note details (safe formatted text), bookmarks, note categories |
 | `bujo/categories.py` | Meeting categories: names, colours, remembered by meeting name |
 | `bujo/backup.py`, `bujo/startup.py` | Daily backups; start at Windows login |
 | `bujo/calendar.py` | Outlook meetings: Power Automate JSON reader, local cache, sync |

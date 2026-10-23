@@ -85,6 +85,20 @@ notes a **dash**. Every mark sits in the same fixed 16px slot, so text always li
 - **Settings** follows the app-screen settings pattern: a 4-column label and help text
   beside an 8-column panel, sections split by a rule, one Save per panel.
 
+## Notes (bookmarks)
+
+- A note's title stays in the journal (now a link). Under the day's entries, each note
+  has a **card**: title, bookmark ribbon, a 3-line preview of its details, and its
+  category's pastel (the same eight as meetings). Cards are 2 across (354 + 16 + 354).
+- The **note page** is a writing sheet: a white card running to the foot of the window
+  with a quiet toolbar (B, I, U, bullets, numbers, a "Saved" stamp) beside a "More from
+  Week N" list (8 + 4). Its title is 32px, not 48, because titles are user text and can
+  be long.
+- **Bookmarks** take the sidebar's group slot (replacing "Recent weeks"): the 10 newest
+  by note date, each on two lines (title, then date), then "Browse all N bookmarks".
+- The ribbon is filled teal when bookmarked and outlined when not. The state is also in
+  its title and accessible name.
+
 ## Departures from the sheet
 
 - **No count tiles.** The home pattern's four KPI tiles are left out: the greeting's fact
@@ -93,6 +107,14 @@ notes a **dash**. Every mark sits in the same fixed 16px slot, so text always li
   48px. It drops to 28px on a phone.
 
 ## Gate log
+
+- Notes: lint 0/0. Inspect: day, notes (by week, by category) 0 FAIL; note page 0 FAIL
+  with WARNs accepted for the empty writing space (`hero-void`, `panel-void`,
+  `ragged-row`, `blank-gap` all measure the editor's room to type). Fixed: previews
+  running list items together, truncated sidebar titles, sidebar not updating after an
+  in-place bookmark (found by the browser test), empty paragraphs. In-browser: "- "
+  prefix makes a card, bookmark from card, Ctrl+B / Ctrl+Shift+8 / toolbar, autosave and
+  reload, plain-text paste, category + title edit, save on leaving, `o`; no errors.
 
 - Fix + backlog on today (day view): lint 0/0; inspect 0 FAIL, WARNs as before (title
   size; `ragged-row`, the side column now holds four short lists). In-browser: day task →

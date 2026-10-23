@@ -20,6 +20,9 @@ async function post(url, data) {
   const fresh = doc.getElementById("content");
   if (!fresh) return location.reload();
   $("#content").replaceWith(fresh);
+  // The sidebar shows bookmarks and today's date, so redraw it too (keeping the phone menu's state).
+  const freshNav = doc.getElementById("nav");
+  if (freshNav) $("#nav").innerHTML = freshNav.innerHTML;
   document.title = doc.title;
   return true;
 }
@@ -34,6 +37,7 @@ document.addEventListener("submit", async (ev) => {
   const form = ev.target.closest("form[data-inline]");
   if (!form) return;
   ev.preventDefault();
+  await saveNote();   // never lose typing when the page is redrawn
   const focusId = document.activeElement?.id;
   const entryId = form.dataset.entry || document.activeElement?.closest?.("li.entry")?.dataset.id;
   const composer = form.hasAttribute("data-composer");
@@ -133,7 +137,7 @@ document.addEventListener("click", (ev) => {
   if (mtg && !t.closest("dialog")) return openCategory(mtg);
   const act = t.closest("[data-act]");
   if (act) {
-    const li = act.closest("li.entry");
+    const li = act.closest("li.entry") || $(".note-head");
     return act.dataset.act === "move" ? openMove(li) : openEdit(li);
   }
   if (t.closest("[data-menu]")) {
@@ -193,7 +197,8 @@ document.addEventListener("keydown", (ev) => {
     ">": () => task && state === "open" && action(li, "forward"),
     m: () => task && state === "open" && openMove(li),
     "<": () => task && state === "open" && openMove(li),
-    e: () => li && state !== "migrated" && state !== "scheduled" && openEdit(li),
+    e: () => (li ? state !== "migrated" && state !== "scheduled" && openEdit(li) : $(".note-head") && openEdit($(".note-head"))),
+    o: () => go("[data-go=o]"),
     "[": () => go("a[rel=prev]"),
     "]": () => go("a[rel=next]"),
     t: () => go("[data-go=t]"),
@@ -221,3 +226,107 @@ if (location.hash === "#add") {
   $("[data-composer] input[name=text]")?.focus();
   history.replaceState(null, "", location.pathname);
 }
+
+// --- Note editor -----------------------------------------------------------------
+// The details of a note: contenteditable with bold, italic, underline and lists.
+// Saves a moment after typing stops, on leaving the box, and before the page goes.
+// The server keeps only those few tags (notes.sanitise), whatever arrives.
+
+const SAVE_DELAY = 800;
+let saveTimer = null;
+
+const noteBody = () => $("#note-body");
+
+async function saveNote() {
+  const box = noteBody();
+  clearTimeout(saveTimer);
+  if (!box || box.dataset.dirty !== "1") return;
+  box.dataset.dirty = "0";
+  const stamp = $("[data-stamp]");
+  const data = new FormData();
+  data.set("body", box.innerHTML);
+  try {
+    const res = await fetch(box.dataset.save, { method: "POST", body: data });
+    if (!res.ok) throw new Error(await res.text());
+    if (stamp) stamp.textContent = await res.text();
+  } catch {
+    box.dataset.dirty = "1";
+    if (stamp) stamp.textContent = "Not saved yet, retrying…";
+    saveTimer = setTimeout(saveNote, 3000);
+  }
+}
+
+function noteChanged() {
+  const box = noteBody();
+  box.dataset.dirty = "1";
+  const stamp = $("[data-stamp]");
+  if (stamp) stamp.textContent = "Saving…";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNote, SAVE_DELAY);
+}
+
+function toolbarState() {
+  for (const b of $$(".note-toolbar [data-cmd]")) {
+    let on = false;
+    try { on = document.queryCommandState(b.dataset.cmd); } catch {}
+    b.setAttribute("aria-pressed", String(on));
+  }
+}
+
+function format(cmd) {
+  const box = noteBody();
+  if (!box) return;
+  if (document.activeElement !== box) box.focus();
+  document.execCommand(cmd);
+  toolbarState();
+  noteChanged();
+}
+
+try {
+  document.execCommand("styleWithCSS", false, false);           // <b>, not <span style>
+  document.execCommand("defaultParagraphSeparator", false, "p");
+} catch {}
+
+// Keep the selection in the text when a toolbar button is pressed
+document.addEventListener("mousedown", (ev) => {
+  if (ev.target.closest(".note-toolbar [data-cmd]")) ev.preventDefault();
+});
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest(".note-toolbar [data-cmd]");
+  if (b) format(b.dataset.cmd);
+});
+document.addEventListener("input", (ev) => {
+  if (ev.target.id === "note-body") noteChanged();
+});
+document.addEventListener("focusout", (ev) => {
+  if (ev.target.id === "note-body") saveNote();
+});
+document.addEventListener("selectionchange", () => {
+  if (document.activeElement?.id === "note-body") toolbarState();
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.id !== "note-body" || !(ev.ctrlKey || ev.metaKey) || !ev.shiftKey) return;
+  if (ev.code === "Digit8") { ev.preventDefault(); format("insertUnorderedList"); }
+  if (ev.code === "Digit7") { ev.preventDefault(); format("insertOrderedList"); }
+});
+// Paste as plain text: no fonts or colours from Outlook or Word
+document.addEventListener("paste", (ev) => {
+  if (ev.target.closest?.("#note-body")) {
+    ev.preventDefault();
+    document.execCommand("insertText", false, ev.clipboardData.getData("text/plain"));
+  }
+});
+// Leaving the page with unsaved typing: send it on the way out
+window.addEventListener("pagehide", () => {
+  const box = noteBody();
+  if (box && box.dataset.dirty === "1") {
+    const data = new FormData();
+    data.set("body", box.innerHTML);
+    navigator.sendBeacon(box.dataset.save, data);
+  }
+});
+// A select that saves as soon as it changes (the note's category)
+document.addEventListener("change", (ev) => {
+  const form = ev.target.closest("form[data-autosubmit]");
+  if (form) form.requestSubmit();
+});

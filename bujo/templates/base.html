@@ -1,4 +1,4 @@
-<!doctype html>
+{% from "_macros.html" import ribbon %}<!doctype html>
 <html lang="en-GB">
 <head>
   <meta charset="utf-8">
@@ -38,10 +38,20 @@
       Backlog
     </a>
 
-    <div class="group-label">Recent weeks</div>
-    {% for key, label, range in recent_weeks %}
-    <a class="nav-item" href="/week/{{ key }}"{% if nav == "week:" ~ key %} aria-current="page"{% endif %}>{{ label }} <span class="nav-meta">{{ range }}</span></a>
+    <a class="nav-item" href="/notes"{% if nav == "notes" %} aria-current="page"{% endif %} data-go="o">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3M5.5 8h5M5.5 10.5h5"/></svg>
+      Notes
+    </a>
+
+    <div class="group-label">Bookmarks</div>
+    {% for n in bookmarks %}
+    <a class="nav-item bookmark-item" href="/notes/{{ n.e.id }}"{% if nav == "note:" ~ n.e.id %} aria-current="page"{% endif %} title="{{ n.e.text }}">
+      <span class="bm-title">{{ n.e.text }}</span><span class="nav-meta">{{ note_when(n) }}</span>
+    </a>
+    {% else %}
+    <p class="nav-empty">Bookmark a note to keep it here.</p>
     {% endfor %}
+    {% if more_bookmarks %}<a class="nav-item browse" href="/notes?only=bookmarked">Browse all {{ bookmarks | length + more_bookmarks }} bookmarks</a>{% endif %}
 
     <div class="bottom">
       <a class="nav-item" href="/settings"{% if nav == "settings" %} aria-current="page"{% endif %} data-go="s">
@@ -137,7 +147,8 @@
     <div><dt><kbd>e</kbd></dt><dd>Edit the text</dd></div>
     <div><dt><kbd>c</kbd></dt><dd>Cancel / restore a task</dd></div>
     <div><dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Previous / next day or week</dd></div>
-    <div><dt><kbd>t</kbd> <kbd>w</kbd> <kbd>f</kbd> <kbd>b</kbd> <kbd>s</kbd></dt><dd>Today, this week, future log, backlog, settings</dd></div>
+    <div><dt><kbd>t</kbd> <kbd>w</kbd> <kbd>f</kbd> <kbd>b</kbd> <kbd>o</kbd> <kbd>s</kbd></dt><dd>Today, this week, future log, backlog, notes, settings</dd></div>
+    <div><dt><kbd>Ctrl</kbd>+<kbd>B</kbd> <kbd>I</kbd> <kbd>U</kbd></dt><dd>In a note: bold, italic, underline. <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>8</kbd> / <kbd>7</kbd>: bullets / numbers</dd></div>
     <div><dt><kbd>Enter</kbd></dt><dd>On a meeting: set its category</dd></div>
     <div><dt><kbd>v</kbd></dt><dd>Week: meetings only / meetings and tasks</dd></div>
     <div><dt><kbd>Esc</kbd></dt><dd>Close a dialog, leave the add box</dd></div>

@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import backup, calendar as calmod, categories as catmod, dates, journal as j, startup, views
+from . import backup, calendar as calmod, categories as catmod, dates, journal as j, notes as notemod, startup, views
 from .db import connect
 
 HERE = Path(__file__).parent
@@ -49,8 +49,11 @@ def create_app(db_path: Path, today: Callable[[], date] = dates.local_today,
         with db() as conn:
             picker = catmod.all_categories(conn, include_archived=False)
             n_backlog = j.count_in_list(conn, "backlog")
+            marks = notemod.bookmarks(conn)
         return templates.TemplateResponse(request, name, {
             "picker": picker, "n_backlog": n_backlog,
+            "bookmarks": marks[:views.SIDEBAR_BOOKMARKS], "more_bookmarks": max(0, len(marks) - views.SIDEBAR_BOOKMARKS),
+            "note_when": views.note_when,
             **ctx, "nav": nav, "today": t, "today_label": views.short_day(t),
             "this_week": cal_week, "this_week_number": dates.parse_week_key(cal_week)[1],
             "recent_weeks": [(k, views.week_label(k), views.week_range(k)) for k in recent],
@@ -126,6 +129,23 @@ def create_app(db_path: Path, today: Callable[[], date] = dates.local_today,
             ctx = views.settings_view(conn, today(), db_path)
         return page(request, "settings.html", ctx, "settings", status)
 
+    @app.get("/notes", response_class=HTMLResponse)
+    def notes_page(request: Request, by: str = "week", only: str = ""):
+        with db() as conn:
+            status = refresh(conn)
+            ctx = views.notes_list_view(conn, "category" if by == "category" else "week", only == "bookmarked")
+        return page(request, "notes.html", ctx, "notes", status)
+
+    @app.get("/notes/{entry_id}", response_class=HTMLResponse)
+    def note_page(request: Request, entry_id: int):
+        with db() as conn:
+            status = refresh(conn)
+            try:
+                ctx = views.note_view(conn, entry_id, today())
+            except (notemod.NoteError, j.JournalError):
+                raise HTTPException(404, "No such note")
+        return page(request, "note.html", ctx, f"note:{entry_id}", status)
+
     @app.get("/future", response_class=HTMLResponse)
     def future(request: Request):
         with db() as conn:
@@ -139,7 +159,7 @@ def create_app(db_path: Path, today: Callable[[], date] = dates.local_today,
         with db() as conn:
             try:
                 fn(conn, *args)
-            except (j.JournalError, catmod.CategoryError) as e:
+            except (j.JournalError, catmod.CategoryError, notemod.NoteError) as e:
                 raise HTTPException(400, str(e))
         return back(next_url)
 
@@ -224,6 +244,27 @@ def create_app(db_path: Path, today: Callable[[], date] = dates.local_today,
                 raise catmod.CategoryError("That meeting isn't in your calendar any more")
             catmod.tag(conn, m, int(category) if category.isdigit() else None, only_this=bool(only_this))
         return act(run, next_url=next)
+
+    # --- Notes -----------------------------------------------------------------
+
+    @app.post("/notes/{entry_id}/body")
+    def save_note(entry_id: int, body: str = Form("")):
+        # Autosaved from the editor with fetch: answer with the stamp, not a page.
+        with db() as conn:
+            try:
+                notemod.save_body(conn, entry_id, body)
+            except (notemod.NoteError, j.JournalError) as e:
+                raise HTTPException(400, str(e))
+        return PlainTextResponse(f"Saved {dates.to_local(now()):%H:%M}")
+
+    @app.post("/notes/{entry_id}/bookmark")
+    def bookmark(entry_id: int, on: str = Form(""), next: str = Form("/")):
+        return act(lambda conn: notemod.set_bookmark(conn, entry_id, bool(on)), next_url=next)
+
+    @app.post("/notes/{entry_id}/category")
+    def note_category(entry_id: int, category: str = Form(""), next: str = Form("/")):
+        return act(lambda conn: notemod.set_category(conn, entry_id, int(category) if category.isdigit() else None),
+                   next_url=next)
 
     # --- Settings ---------------------------------------------------------------
 

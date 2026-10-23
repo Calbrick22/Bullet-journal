@@ -411,3 +411,72 @@ def test_backlog_preview_on_todays_page_only(env):
     assert "Someday 0" in today and "Someday 4" in today and "Someday 5" not in today
     assert "2 more in the backlog" in today and today.count(">Start<") == 5
     assert "Someday 0" not in client.get("/day/2026-10-23").text
+
+
+# --- Notes and bookmarks ------------------------------------------------------------
+
+def note_id(path, text):
+    with db(path) as conn:
+        return conn.execute("SELECT id FROM entries WHERE text = ?", (text,)).fetchone()[0]
+
+
+def test_adding_a_note_makes_a_card_on_the_day(env):
+    client, _, path = env
+    add(client, "- Ops review takeaways")
+    html = client.get("/day/2026-10-22").text
+    nid = note_id(path, "Ops review takeaways")
+    assert f'href="/notes/{nid}"' in html and 'class="note-card' in html and "Add details" in html
+
+
+def test_note_page_saves_formatted_details_safely(env):
+    client, _, path = env
+    add(client, "- Ops review takeaways")
+    nid = note_id(path, "Ops review takeaways")
+    r = client.post(f"/notes/{nid}/body", data={"body": '<p><b>Three</b> actions<script>x()</script></p><ul><li onclick="y">Budget</li></ul>'})
+    assert r.status_code == 200 and r.text.startswith("Saved")
+    page = client.get(f"/notes/{nid}").text
+    assert "<p><strong>Three</strong> actions</p><ul><li>Budget</li></ul>" in page
+    assert "x()" not in page and "onclick" not in page
+    assert "Three actions · Budget" in client.get("/day/2026-10-22").text      # card preview
+    assert client.get("/notes/99999").status_code == 404
+
+
+def test_bookmarks_in_the_sidebar_newest_first_and_browse_all(env):
+    client, _, path = env
+    for i in range(12):
+        add(client, f"- Note {i:02d}", target=f"d:2026-10-{i + 1:02d}")
+        client.post(f"/notes/{note_id(path, f'Note {i:02d}')}/bookmark", data={"on": "1"})
+    nav = client.get("/day/2026-10-22").text.split("</nav>")[0]
+    shown = re.findall(r'<span class="bm-title">(Note \d+)</span>', nav)
+    assert shown == [f"Note {i:02d}" for i in range(11, 1, -1)]          # 10 newest
+    assert "Browse all 12 bookmarks" in nav
+    client.post(f"/notes/{note_id(path, 'Note 11')}/bookmark", data={"on": ""})
+    nav = client.get("/day/2026-10-22").text.split("</nav>")[0]
+    assert "Note 11" not in nav and "Browse all 11 bookmarks" in nav   # 11 left: still more than 10
+
+
+def test_all_notes_by_week_and_by_category(env):
+    client, _, path = env
+    client.post("/settings/categories", data={"name": "Atlas", "colour": "mint"})
+    add(client, "- Kick-off", target="d:2026-10-20")
+    add(client, "- Retro", target="d:2026-10-13")
+    add(client, "- Loose idea", target="w:2026-W43")
+    with db(path) as conn:
+        from bujo import categories as cats
+        [atlas] = cats.all_categories(conn)
+    client.post(f"/notes/{note_id(path, 'Kick-off')}/category", data={"category": str(atlas.id)})
+    client.post(f"/notes/{note_id(path, 'Retro')}/bookmark", data={"on": "1"})
+    by_week = client.get("/notes").text.split("<main")[1]       # the sidebar lists bookmarks too
+    assert by_week.index("Week 43") < by_week.index("Kick-off") < by_week.index("Week 42") < by_week.index("Retro")
+    assert "3 notes, 1 bookmarked" in by_week
+    by_cat = client.get("/notes?by=category").text.split("<main")[1]
+    assert by_cat.index(">Atlas") < by_cat.index("Kick-off") < by_cat.index("No category") < by_cat.index("Retro")
+    only = client.get("/notes?only=bookmarked").text
+    assert "Retro" in only and "Kick-off" not in only.split("<main")[1]
+
+
+def test_note_details_only_for_notes(env):
+    client, _, path = env
+    add(client, "A task")
+    assert client.post(f"/notes/{note_id(path, 'A task')}/body", data={"body": "x"}).status_code == 400
+    assert client.post(f"/notes/{note_id(path, 'A task')}/bookmark", data={"on": "1"}).status_code == 400

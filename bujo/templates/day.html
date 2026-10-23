@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import entry, meeting, composer %}
+{% from "_macros.html" import entry, meeting, composer, note_card %}
 {% block content %}
 <div class="title-row">
   <div>
@@ -17,13 +17,21 @@
 
 
 <div class="day-grid">
-  <section class="day-sheet{% if is_today %} today{% endif %}" aria-label="{{ title }}">
-    {% if rows %}
-    <ul class="entries">{% for r in rows %}{{ entry(r, next, actions=true, trail=true) }}{% endfor %}</ul>
-    {% else %}
-    <p class="empty">Nothing on this day yet</p>
+  <div class="day-main">
+    <section class="day-sheet{% if is_today %} today{% endif %}" aria-label="{{ title }}">
+      {% if rows %}
+      <ul class="entries">{% for r in rows %}{{ entry(r, next, actions=true, trail=true) }}{% endfor %}</ul>
+      {% else %}
+      <p class="empty">Nothing on this day yet</p>
+      {% endif %}
+    </section>
+    {% if notes %}
+    <section class="day-notes" aria-labelledby="notes-h">
+      <h2 id="notes-h">Notes</h2>
+      <div class="note-cards">{% for n in notes %}{{ note_card(n, next) }}{% endfor %}</div>
+    </section>
     {% endif %}
-  </section>
+  </div>
 
   <div class="day-side">
     <section class="panel" aria-labelledby="meetings-h">

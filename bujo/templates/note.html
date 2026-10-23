@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_macros.html" import bookmark_button %}
+{% block content %}
+<div class="title-row">
+  <div class="note-head" data-id="{{ note.e.id }}" data-text="{{ note.e.text }}" data-kind="note" data-state="{{ note.e.state }}">
+    <h1 class="greeting note-title">{{ title }}</h1>
+    <p class="sub">{{ facts }}</p>
+  </div>
+  <div class="pager">
+    <a class="btn ghost" href="{{ back_url }}">‹ {{ back_label }}</a>
+    <a class="btn ghost" href="/notes">All notes</a>
+  </div>
+</div>
+
+<div class="note-controls">
+  {{ bookmark_button(note, next, labelled=true) }}
+  <form class="note-cat-form" method="post" action="/notes/{{ note.e.id }}/category" data-inline data-autosubmit>
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Category
+      <select class="input" name="category">
+        <option value="">No category</option>
+        {% for c in picker %}<option value="{{ c.id }}"{% if note.category and note.category.id == c.id %} selected{% endif %}>{{ c.name }}</option>{% endfor %}
+        {% if note.category and note.category.archived %}<option value="{{ note.category.id }}" selected disabled>{{ note.category.name }} (archived)</option>{% endif %}
+      </select>
+    </label>
+    <noscript><button class="btn" type="submit">Save</button></noscript>
+  </form>
+  <button class="btn ghost" type="button" data-act="edit" title="Edit the title (e)">Edit title</button>
+</div>
+
+<div class="note-grid">
+  <section class="note-sheet" aria-label="Details">
+    <div class="note-toolbar" role="toolbar" aria-label="Formatting" aria-controls="note-body">
+      <button type="button" data-cmd="bold" title="Bold (Ctrl+B)" aria-pressed="false"><strong>B</strong><span class="visually-hidden"> Bold</span></button>
+      <button type="button" data-cmd="italic" title="Italic (Ctrl+I)" aria-pressed="false"><em>I</em><span class="visually-hidden"> Italic</span></button>
+      <button type="button" data-cmd="underline" title="Underline (Ctrl+U)" aria-pressed="false"><u>U</u><span class="visually-hidden"> Underline</span></button>
+      <span class="sep" aria-hidden="true"></span>
+      <button type="button" data-cmd="insertUnorderedList" title="Bullets (Ctrl+Shift+8)" aria-pressed="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="4" r="1.2"/><circle cx="3" cy="8" r="1.2"/><circle cx="3" cy="12" r="1.2"/><path d="M6 4h8M6 8h8M6 12h8" stroke="currentColor" stroke-width="1.4"/></svg><span class="visually-hidden">Bullets</span></button>
+      <button type="button" data-cmd="insertOrderedList" title="Numbers (Ctrl+Shift+7)" aria-pressed="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><text x="0.5" y="6" font-size="5.5" font-family="inherit">1</text><text x="0.5" y="13" font-size="5.5" font-family="inherit">2</text><path d="M6 4h8M6 11h8" stroke="currentColor" stroke-width="1.4"/></svg><span class="visually-hidden">Numbers</span></button>
+      <span class="stamp" data-stamp aria-live="polite">{% if note.updated_at %}Saved{% endif %}</span>
+    </div>
+    <div class="note-body" id="note-body" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Note details"
+         data-save="/notes/{{ note.e.id }}/body" data-placeholder="Write the details here. Bold, italic, underline, bullets and numbers.">{{ note.body | safe }}</div>
+  </section>
+
+  <section class="panel siblings" aria-labelledby="sib-h">
+    <header><h2 id="sib-h">More from {{ week_label }}</h2></header>
+    {% if siblings %}
+    <ul class="note-list compact">
+      {% for n in siblings %}
+      <li><a href="/notes/{{ n.e.id }}">{{ n.e.text }}</a><span class="meta">{{ note_when(n) }}{% if n.bookmarked %} · bookmarked{% endif %}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="quiet">No other notes that week.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

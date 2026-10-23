@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
-from . import backup, calendar as calmod, categories as catmod, dates, journal as j, startup
+from . import backup, calendar as calmod, categories as catmod, dates, journal as j, notes as notemod, startup
 from .categories import Category
 from .calendar import Meeting
 from .journal import Entry
@@ -428,6 +428,7 @@ def day_view(conn, d: date, today: date, now: datetime) -> dict:
         "meetings": meeting_rows(ms, d, now, catmod.for_meetings(conn, ms)),
         "coming": rows_for(conn, coming, d)[:NEXT_ROWS], "coming_more": max(0, len(coming) - NEXT_ROWS),
         "ongoing": rows_for(conn, j.entries_in_list(conn, "ongoing", now - DONE_VISIBLE), d, today, cal),
+        "notes": notemod.for_day(conn, d),
         "backlog": rows_for(conn, backlog[:BACKLOG_ROWS], d, today, cal) if d == today else [],
         "backlog_more": max(0, len(backlog) - BACKLOG_ROWS), "backlog_total": len(backlog),
         "targets": [(f"d:{d.isoformat()}", short_day(d))] + LIST_TARGETS, "default_target": f"d:{d.isoformat()}",
@@ -557,4 +558,68 @@ def settings_view(conn, today: date, db_path) -> dict:
         "backups": [(p.name, f"{p.stat().st_size / 1024:.0f} KB") for p in backups[:5]],
         "backup_dir": str(backup.backup_dir(db_path)),
         "phone_title": "Settings",
+    }
+
+
+# --- Notes ----------------------------------------------------------------------
+
+SIDEBAR_BOOKMARKS = 10
+
+
+def note_when(n) -> str:
+    return day_month(n.e.entry_date) if n.e.entry_date else week_label(n.e.entry_week)
+
+
+def note_view(conn, entry_id: int, today: date) -> dict:
+    n = notemod.get(conn, entry_id)
+    key = n.e.entry_week or dates.week_key(n.e.entry_date)
+    _, number = dates.parse_week_key(key)
+    where = long_day(n.e.entry_date) if n.e.entry_date else f"{week_label(key)}, no day"
+    siblings = [x for x in notemod.for_week(conn, key) if x.e.id != n.e.id]
+    back = (f"/day/{n.e.entry_date.isoformat()}", short_day(n.e.entry_date)) if n.e.entry_date \
+        else (f"/week/{key}?show=all", week_label(key))
+    return {
+        "title": n.e.text, "note": n,
+        "facts": f"{where} · Week {number}" + (f" · {n.category.name}" if n.category else ""),
+        "back_url": back[0], "back_label": back[1],
+        "siblings": siblings, "week_label": week_label(key),
+        "phone_title": "Note",
+    }
+
+
+@dataclass
+class NoteGroup:
+    key: str
+    label: str
+    sub: str
+    notes: list
+
+
+def notes_list_view(conn, by: str = "week", bookmarked_only: bool = False) -> dict:
+    all_n = notemod.all_notes(conn, bookmarked_only)
+    groups: list[NoteGroup] = []
+    if by == "category":
+        order = {c.id: i for i, c in enumerate(catmod.all_categories(conn))}
+        by_cat: dict = {}
+        for n in all_n:
+            by_cat.setdefault(n.category.id if n.category else None, []).append(n)
+        for cid in sorted(by_cat, key=lambda c: (c is None, order.get(c, 0))):
+            ns = by_cat[cid]
+            c = ns[0].category
+            groups.append(NoteGroup(f"c{cid}", c.name if c else "No category",
+                                    ("archived" if c and c.archived else ""), ns))
+    else:
+        for n in all_n:
+            key = n.e.entry_week or dates.week_key(n.e.entry_date)
+            if not groups or groups[-1].key != key:
+                year, number = dates.parse_week_key(key)
+                groups.append(NoteGroup(key, f"Week {number}", f"{week_range(key)} {year}", []))
+            groups[-1].notes.append(n)
+    n_book = sum(1 for n in all_n if n.bookmarked)
+    total = len(all_n)
+    facts = (f"{total} bookmarked note{'s' if total != 1 else ''}" if bookmarked_only
+             else f"{total} note{'s' if total != 1 else ''}, {n_book} bookmarked")
+    return {
+        "title": "Notes", "facts": facts, "groups": groups, "by": by, "bookmarked_only": bookmarked_only,
+        "phone_title": "Notes",
     }

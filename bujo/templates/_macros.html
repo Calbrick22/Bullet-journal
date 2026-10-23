@@ -21,7 +21,8 @@
   <span class="sig dash" title="Note">–</span>
   {%- endif %}
   <span class="text">
-    <span class="visually-hidden">{{ e.kind }}{% if e.kind == "task" %}, {{ e.state }}{% endif %}: </span>{{ e.text }}
+    <span class="visually-hidden">{{ e.kind }}{% if e.kind == "task" %}, {{ e.state }}{% endif %}: </span>
+    {%- if e.kind == "note" %}<a class="note-link" href="/notes/{{ e.id }}">{{ e.text }}</a>{% else %}{{ e.text }}{% endif %}
     {%- if r.note %} <span class="moved">{{ r.note }}</span>{% endif %}
     {%- if e.state == "cancelled" %} <span class="moved">cancelled</span>{% endif %}
     {%- if r.carried %} <span class="pill warn">{{ r.day_count }}</span>{% endif %}
@@ -100,4 +101,34 @@ meeting {{ mr.kind }}{% if mr.m.all_day %} all-day{% endif %}{% if mr.past %} pa
   <label><input type="radio" name="kind" value="note"><span class="sig dash" aria-hidden="true">–</span>Note</label>
   <label><input type="radio" name="kind" value="event"><span class="sig star" aria-hidden="true">{{ star() }}</span>Event</label>
 </fieldset>
+{%- endmacro %}
+
+
+{#- Notes: a ribbon that's filled when bookmarked. The state is also in words (title,
+    accessible name), never only in the fill. -#}
+{% macro ribbon() -%}
+<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.75h8a.75.75 0 0 1 .75.75v11.6l-4.75-3.1-4.75 3.1V2.5A.75.75 0 0 1 4 1.75z"/></svg>
+{%- endmacro %}
+
+{% macro bookmark_button(n, next, labelled=false) -%}
+<form class="bookmark-form" method="post" action="/notes/{{ n.e.id }}/bookmark" data-inline>
+  <input type="hidden" name="next" value="{{ next }}">
+  <input type="hidden" name="on" value="{{ '' if n.bookmarked else '1' }}">
+  <button class="bookmark{% if n.bookmarked %} on{% endif %}{% if labelled %} btn{% endif %}" id="bm{{ n.e.id }}" type="submit"
+          aria-pressed="{{ 'true' if n.bookmarked else 'false' }}" title="{{ 'Remove bookmark' if n.bookmarked else 'Bookmark this note' }}">
+    {{ ribbon() }}{% if labelled %}{{ "Bookmarked" if n.bookmarked else "Bookmark" }}{% else %}<span class="visually-hidden">{{ "Bookmarked" if n.bookmarked else "Bookmark" }}</span>{% endif %}
+  </button>
+</form>
+{%- endmacro %}
+
+{% macro note_card(n, next) -%}
+<article class="note-card{% if n.category %} cat cat-{{ n.category.colour }}{% endif %}" aria-labelledby="nc{{ n.e.id }}">
+  <header>
+    <h3 id="nc{{ n.e.id }}"><a href="/notes/{{ n.e.id }}">{{ n.e.text }}</a></h3>
+    {{ bookmark_button(n, next) }}
+  </header>
+  {% if n.has_details %}<p class="preview">{{ n.preview() }}</p>
+  {% else %}<p class="preview quiet"><a href="/notes/{{ n.e.id }}">Add details</a></p>{% endif %}
+  {% if n.category %}<p class="note-cat">{{ n.category.name }}</p>{% endif %}
+</article>
 {%- endmacro %}

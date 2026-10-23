@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_macros.html" import bookmark_button %}
+{% block content %}
+<div class="title-row">
+  <div>
+    <h1 class="greeting">{{ title }}</h1>
+    <p class="sub">{{ facts }}</p>
+  </div>
+</div>
+
+<div class="controls">
+  <nav class="segmented view-toggle" aria-label="Group by">
+    <a href="/notes?by=week{% if bookmarked_only %}&only=bookmarked{% endif %}"{% if by == "week" %} aria-current="true"{% endif %}>By week</a>
+    <a href="/notes?by=category{% if bookmarked_only %}&only=bookmarked{% endif %}"{% if by == "category" %} aria-current="true"{% endif %}>By category</a>
+  </nav>
+  <nav class="segmented view-toggle" aria-label="Show">
+    <a href="/notes?by={{ by }}"{% if not bookmarked_only %} aria-current="true"{% endif %}>All notes</a>
+    <a href="/notes?by={{ by }}&only=bookmarked"{% if bookmarked_only %} aria-current="true"{% endif %}>Bookmarked</a>
+  </nav>
+</div>
+
+<div class="notes-groups">
+  {% for g in groups %}
+  <section class="note-group" aria-labelledby="g{{ loop.index }}">
+    <h2 id="g{{ loop.index }}">{{ g.label }}{% if g.sub %} <span class="meta">{{ g.sub }}</span>{% endif %}</h2>
+    <ul class="note-list">
+      {% for n in g.notes %}
+      <li class="note-row" id="e{{ n.e.id }}">
+        {{ bookmark_button(n, next) }}
+        <div class="note-main">
+          <a class="note-title-link" href="/notes/{{ n.e.id }}">{{ n.e.text }}</a>
+          {% if n.has_details %}<span class="preview">{{ n.preview(140) }}</span>{% endif %}
+        </div>
+        {% if n.category and by != "category" %}<span class="pill cat cat-{{ n.category.colour }}">{{ n.category.name }}</span>{% endif %}
+        <span class="when num">{{ note_when(n) }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% else %}
+  <p class="empty">{% if bookmarked_only %}No bookmarked notes yet. Open a note and press Bookmark.{% else %}No notes yet. Add one with "Note" (or start with "- ") in any add box.{% endif %}</p>
+  {% endfor %}
+</div>
+{% endblock %}

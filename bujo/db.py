@@ -109,6 +109,19 @@ MIGRATIONS = [
         category_id INTEGER REFERENCES categories(id)
     );
     """,
+    # 5: a note's details: formatted text, bookmark, category. Optional: a note
+    # without a row here is just its title.
+    """
+    CREATE TABLE note_details (
+        entry_id      INTEGER PRIMARY KEY REFERENCES entries(id),
+        body          TEXT NOT NULL DEFAULT '',   -- sanitised HTML (see notes.sanitise)
+        bookmarked    INTEGER NOT NULL DEFAULT 0 CHECK (bookmarked IN (0, 1)),
+        bookmarked_at TEXT,
+        category_id   INTEGER REFERENCES categories(id),
+        updated_at    TEXT
+    );
+    CREATE INDEX note_bookmarks ON note_details (bookmarked);
+    """,
 ]
 
 
