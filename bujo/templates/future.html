@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "_macros.html" import entry, kinds %}
+{% block content %}
+<div class="title-row">
+  <div>
+    <h1 class="greeting">{{ title }}</h1>
+    <p class="sub">{{ facts }}</p>
+  </div>
+</div>
+
+<form class="composer future-composer" method="post" action="/entries" data-inline data-composer>
+  <input type="hidden" name="next" value="{{ next }}">
+  {{ kinds() }}
+  <label class="when-field">On <input class="input" type="date" name="on" min="{{ min_date }}" aria-label="Date"></label>
+  <label class="when-field">or week <input class="input" type="week" name="week" value="{{ default_week }}" aria-label="Week"></label>
+  <input class="input text" name="text" required maxlength="500" autocomplete="off" aria-label="New entry" placeholder="Plan something ahead" title="Start with * for an event or - for a note">
+  <button class="btn primary" type="submit">Add</button>
+</form>
+
+<div class="future-grid">
+  <section class="future-list" aria-label="Planned ahead">
+    {% for month, items in months %}
+    <section class="month" aria-labelledby="m{{ loop.index }}">
+      <h2 id="m{{ loop.index }}">{{ month }}</h2>
+      <ul class="rows">
+        {% for a in items %}
+        <li class="row ahead-row">
+          <span class="when num">{{ a.when }}</span>
+          {% if a.off %}<span class="off-what">{{ a.off }}</span><span class="pill">{{ a.days }} day{{ "s" if a.days != 1 }} off</span>
+          {% else %}<ul class="entries inline">{{ entry(a.row, next, actions=true) }}</ul>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% else %}
+    <p class="empty">Nothing planned after this week yet. Add something above, or press <kbd>m</kbd> on a task to move it here.</p>
+    {% endfor %}
+  </section>
+
+  <section class="panel weeks-ahead" aria-labelledby="weeks-h">
+    <header><h2 id="weeks-h">Weeks ahead</h2></header>
+    <table>
+      <thead><tr><th>Week</th><th class="n">Planned</th><th class="n">Meetings</th></tr></thead>
+      <tbody>
+        {% for w in loads %}
+        <tr>
+          <td><a href="/week/{{ w.key }}">{{ w.label }}</a><span class="sub">{{ w.range }}</span></td>
+          <td class="n num">{{ w.planned }}</td>
+          <td class="n num">{{ w.meetings }}<span class="sub">{{ w.booked_label }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

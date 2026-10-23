@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import entry, composer %}
+{% from "_macros.html" import entry, meeting, composer %}
 {% block content %}
 <div class="title-row">
   <div>
@@ -12,9 +12,64 @@
     <a class="btn ghost" href="/week/{{ next_key }}" rel="next">{{ next_label }} ›</a>
   </div>
 </div>
-{{ composer(targets, default_target, next, "Add a task, note or event") }}
 
+<div class="controls">
+  <nav class="segmented view-toggle" aria-label="Show">
+    <a href="/week/{{ key }}?show=meetings"{% if show == "meetings" %} aria-current="true"{% else %} data-toggle-view{% endif %}>Meetings</a>
+    <a href="/week/{{ key }}?show=all"{% if show == "all" %} aria-current="true"{% else %} data-toggle-view{% endif %}>Meetings and tasks</a>
+  </nav>
+  {% if show == "all" %}{{ composer(targets, default_target, next, "Add a task, note or event") }}{% endif %}
+</div>
 
+{% if show == "meetings" %}
+<section class="spread timegrid" style="--cols: {{ days | length }}; --track: {{ grid.height }}px; --allday: {{ grid.all_day_rows }}" aria-label="Meetings, {{ title }}">
+  <div class="hours" aria-hidden="true">
+    <div class="day-head"></div>
+    <div class="allday"></div>
+    <div class="track">{% for h, label, top in grid.hours %}<span style="top: {{ top }}px">{{ label }}</span>{% endfor %}</div>
+  </div>
+  {% for d in days %}
+  <article class="day{% if d.is_today %} today{% endif %}{% if d.is_past %} past{% endif %}{% if d.off %} off{% endif %}" aria-label="{{ d.label }}{% if d.is_today %}, today{% endif %}">
+    <header class="day-head">
+      <h2><a href="/day/{{ d.date.isoformat() }}">{{ d.label }}</a>{% if d.is_today %} <span class="today-label">Today</span>{% endif %}</h2>
+      <p class="booked num">{% if d.off %}{{ d.off }}{% elif d.n_meetings %}{{ d.n_meetings }} · {{ d.booked_label or "0 m" }}{% else %}No meetings{% endif %}</p>
+    </header>
+    <ul class="allday">{% for mr in d.meetings if mr.m.all_day %}{{ meeting(mr) }}{% endfor %}</ul>
+    <ul class="track">
+      {%- for h, label, top in grid.hours %}<li class="hour-line" style="top: {{ top }}px" aria-hidden="true"></li>{% endfor %}
+      {%- for mr in d.meetings if not mr.m.all_day %}
+      <li class="meeting {{ mr.kind }}{% if mr.past %} past{% endif %}{% if mr.height < 44 %} short{% endif %}"
+          style="top: {{ mr.top }}px; height: {{ mr.height }}px; --lane: {{ mr.lane }}; --lanes: {{ mr.lanes }}"
+          title="{{ mr.time }} {{ mr.m.subject }}{% if mr.m.location %}, {{ mr.m.location }}{% endif %}{% if mr.kind == 'tentative' %} (tentative){% endif %}">
+        <span class="time num{% if mr.height < 44 %} visually-hidden{% endif %}">{{ mr.time }}</span> <span class="subject">{{ mr.m.subject }}</span>
+        {%- if mr.height >= 64 and mr.m.location %}<span class="where">{{ mr.m.location }}</span>{% endif %}
+      </li>
+      {%- endfor %}
+      {%- if d.is_today and grid.now_px is not none %}<li class="now-line" style="top: {{ grid.now_px }}px"><span class="visually-hidden">Now</span></li>{% endif %}
+    </ul>
+  </article>
+  {% endfor %}
+</section>
+
+{#- Phones: the same meetings as a list per day -#}
+<section class="spread meetings-only" aria-label="Meetings, {{ title }}">
+  {% for d in days %}
+  <article class="day{% if d.is_today %} today{% endif %}{% if d.is_past %} past{% endif %}" aria-label="{{ d.label }}{% if d.is_today %}, today{% endif %}">
+    <header>
+      <h2><a href="/day/{{ d.date.isoformat() }}">{{ d.label }}</a></h2>
+      {% if d.is_today %}<span class="today-label">Today</span>{% elif d.off %}<span class="meta">{{ d.off }}</span>{% endif %}
+    </header>
+    {% if d.meetings %}
+    <p class="booked num">{{ d.n_meetings }} · {{ d.booked_label or "0 m" }} booked</p>
+    <ul class="meetings">{% for mr in d.meetings %}{{ meeting(mr, roomy=true) }}{% endfor %}</ul>
+    {% else %}
+    <p class="quiet">{{ "Day off" if d.off else "No meetings" }}</p>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+
+{% else %}
 <section class="spread" style="--cols: {{ days | length + 1 }}" aria-label="{{ title }}">
   {% for d in days %}
   <article class="day{% if d.is_today %} today{% endif %}{% if d.is_past %} past{% endif %}{% if d.off %} off{% endif %}" aria-label="{{ d.label }}{% if d.is_today %}, today{% endif %}">
@@ -24,9 +79,10 @@
       {% elif d.off %}<span class="meta">{{ d.off }}</span>
       {% elif not d.is_past and d.open_tasks %}<span class="meta num">{{ d.open_tasks }} open</span>{% endif %}
     </header>
+    {% if d.meetings %}<ul class="meetings compact">{% for mr in d.meetings %}{{ meeting(mr) }}{% endfor %}</ul>{% endif %}
     {% if d.rows %}
     <ul class="entries">{% for r in d.rows %}{{ entry(r, next) }}{% endfor %}</ul>
-    {% elif not d.off %}
+    {% elif not d.off and not d.meetings %}
     <p class="quiet">Nothing yet</p>
     {% endif %}
   </article>
@@ -43,7 +99,7 @@
 
 <div class="lower">
   <section class="panel ahead" aria-labelledby="ahead-h">
-    <header><h2 id="ahead-h">Ahead</h2>{% if ahead_more %}<span class="meta">{{ ahead_more }} more</span>{% endif %}</header>
+    <header><h2 id="ahead-h">Ahead</h2><a class="card-link" href="/future">{% if ahead_more %}{{ ahead_more }} more in the future log{% else %}Future log{% endif %}</a></header>
     {% if ahead %}
     <ul class="rows">
       {% for a in ahead %}
@@ -75,4 +131,5 @@
     {% endif %}
   </section>
 </div>
+{% endif %}
 {% endblock %}

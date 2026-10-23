@@ -21,13 +21,17 @@
       <button class="btn ghost menu-close" type="button" data-menu>Close</button>
     </div>
 
-    <a class="nav-item" href="/today"{% if nav == "today" %} aria-current="page"{% endif %}>
+    <a class="nav-item" href="/today"{% if nav == "today" %} aria-current="page"{% endif %} data-go="t">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>
       Today <span class="nav-meta">{{ today_label }}</span>
     </a>
-    <a class="nav-item" href="/week/{{ this_week }}"{% if nav == "week" %} aria-current="page"{% endif %}>
+    <a class="nav-item" href="/week/{{ this_week }}"{% if nav == "week" %} aria-current="page"{% endif %} data-go="w">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M5.8 2.5v11M10.2 2.5v11"/></svg>
       This week <span class="nav-meta">{{ this_week_number }}</span>
+    </a>
+    <a class="nav-item" href="/future"{% if nav == "future" %} aria-current="page"{% endif %} data-go="f">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 8h10M8.5 4.5 12 8l-3.5 3.5"/><path d="M14.5 3v10"/></svg>
+      Future log
     </a>
 
     <div class="group-label">Recent weeks</div>
@@ -36,7 +40,11 @@
     {% endfor %}
 
     <div class="bottom">
-      <div class="sync">Calendar not connected yet</div>
+      <button class="nav-item keys-link" type="button" data-keys>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="1.5" y="4" width="13" height="8.5" rx="1.5"/><path d="M4 7h1M7.5 7h1M11 7h1M5 10h6"/></svg>
+        Keyboard shortcuts <span class="nav-meta">?</span>
+      </button>
+      <div class="sync{% if calendar.problem %} problem{% endif %}">{{ calendar.text }}</div>
     </div>
   </nav>
 
@@ -50,6 +58,57 @@
     </div>
   </main>
 </div>
+
+{#- Dialogs used by the keyboard shortcuts and the Move / Edit buttons -#}
+<dialog class="sheet" id="move-dialog" aria-labelledby="move-h">
+  <form method="post" data-inline data-dialog>
+    <input type="hidden" name="next" value="{{ next }}">
+    <h2 id="move-h">Move <span data-fill="text"></span></h2>
+    <fieldset class="choices">
+      <legend class="visually-hidden">Move to</legend>
+      <label><input type="radio" name="to" value="forward" checked> Next working day <span class="meta" data-fill="forward"></span> <kbd>&gt;</kbd></label>
+      <label><input type="radio" name="to" value="next-week"> {{ next_week_label }}, no day yet</label>
+      <label><input type="radio" name="to" value="date"> A date <input class="input" type="date" name="on" aria-label="Date" data-pick="date"></label>
+      <label><input type="radio" name="to" value="week"> A week <input class="input" type="week" name="week" aria-label="Week" data-pick="week"></label>
+    </fieldset>
+    <p class="quiet">Next working day marks the original &gt; (migrated). A date or week later than today marks it &lt; (scheduled).</p>
+    <div class="dialog-actions">
+      <button class="btn" type="button" data-close>Cancel</button>
+      <button class="btn primary" type="submit">Move</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="sheet" id="edit-dialog" aria-labelledby="edit-h">
+  <form method="post" data-inline data-dialog>
+    <input type="hidden" name="next" value="{{ next }}">
+    <h2 id="edit-h">Edit entry</h2>
+    <input class="input wide" name="text" required maxlength="500" autocomplete="off" aria-label="Text">
+    <div class="dialog-actions">
+      <button class="btn" type="button" data-close>Cancel</button>
+      <button class="btn primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="sheet" id="keys-dialog" aria-labelledby="keys-h">
+  <h2 id="keys-h">Keyboard shortcuts</h2>
+  <dl class="keys">
+    <div><dt><kbd>n</kbd></dt><dd>Add an entry. Start with <kbd>*</kbd> for an event or <kbd>-</kbd> for a note</dd></div>
+    <div><dt><kbd>j</kbd> <kbd>k</kbd></dt><dd>Next / previous entry</dd></div>
+    <div><dt><kbd>x</kbd> or <kbd>Space</kbd></dt><dd>Tick / untick a task</dd></div>
+    <div><dt><kbd>&gt;</kbd></dt><dd>Migrate to the next working day (a week-only task: next week)</dd></div>
+    <div><dt><kbd>m</kbd> or <kbd>&lt;</kbd></dt><dd>Move or reschedule to a date or week</dd></div>
+    <div><dt><kbd>e</kbd></dt><dd>Edit the text</dd></div>
+    <div><dt><kbd>c</kbd></dt><dd>Cancel / restore a task</dd></div>
+    <div><dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Previous / next day or week</dd></div>
+    <div><dt><kbd>t</kbd> <kbd>w</kbd> <kbd>f</kbd></dt><dd>Today, this week, future log</dd></div>
+    <div><dt><kbd>v</kbd></dt><dd>Week: meetings only / meetings and tasks</dd></div>
+    <div><dt><kbd>Esc</kbd></dt><dd>Close a dialog, leave the add box</dd></div>
+  </dl>
+  <div class="dialog-actions"><button class="btn" type="button" data-close>Close</button></div>
+</dialog>
+
 <script src="/static/js/app.js" defer></script>
 </body>
 </html>

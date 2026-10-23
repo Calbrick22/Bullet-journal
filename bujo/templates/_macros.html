@@ -1,19 +1,21 @@
 {#- An entry. Tasks are tick boxes; events a star; notes a dash.
-    Migrated (>) and scheduled (<) tasks show their arrow where the box was. -#}
+    Migrated (>) and scheduled (<) tasks show their arrow where the box was.
+    data-* attributes feed the keyboard shortcuts and dialogs in app.js. -#}
 {% macro entry(r, next, actions=false, trail=false) -%}
 {%- set e = r.e -%}
-<li class="entry {{ e.kind }} {{ e.state }}{% if r.carried %} carried{% endif %}" id="e{{ e.id }}">
+<li class="entry {{ e.kind }} {{ e.state }}{% if r.carried %} carried{% endif %}" id="e{{ e.id }}" tabindex="-1"
+    data-id="{{ e.id }}" data-kind="{{ e.kind }}" data-state="{{ e.state }}" data-text="{{ e.text }}" data-forward="{{ r.forward }}">
   {%- if e.kind == "task" and e.state in ("open", "done") %}
   <form method="post" action="/entries/{{ e.id }}/{{ 'reopen' if e.state == 'done' else 'done' }}" data-inline>
     <input type="hidden" name="next" value="{{ next }}">
-    <button class="tick" id="t{{ e.id }}" type="submit" role="checkbox" aria-checked="{{ 'true' if e.state == 'done' else 'false' }}" aria-label="{{ e.text }}" title="{{ 'Mark not done' if e.state == 'done' else 'Mark done' }}"></button>
+    <button class="tick" id="t{{ e.id }}" type="submit" role="checkbox" aria-checked="{{ 'true' if e.state == 'done' else 'false' }}" aria-label="{{ e.text }}" title="{{ 'Mark not done' if e.state == 'done' else 'Mark done' }} (x)"></button>
   </form>
   {%- elif e.kind == "task" and e.state == "cancelled" %}
   <span class="tick off" aria-hidden="true"></span>
   {%- elif e.kind == "task" %}
   <span class="sig" title="{{ e.state | capitalize }}">{{ ">" if e.state == "migrated" else "<" }}</span>
   {%- elif e.kind == "event" %}
-  <span class="sig star" title="Event"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.9l1.8 3.9 4.2.5-3.1 2.9.8 4.2L8 11.3l-3.7 2.1.8-4.2L2 6.3l4.2-.5z"/></svg></span>
+  <span class="sig star" title="Event">{{ star() }}</span>
   {%- else %}
   <span class="sig dash" title="Note">–</span>
   {%- endif %}
@@ -24,24 +26,42 @@
     {%- if r.carried %} <span class="pill warn">{{ r.day_count }}</span>{% endif %}
     {%- if trail and r.carried %}<span class="trail">{{ r.trail | join(" › ") }}</span>{% endif %}
   </span>
-  {%- if actions and e.kind == "task" and e.state in ("open", "cancelled") %}
-  <form class="acts" method="post" action="/entries/{{ e.id }}/{{ 'cancel' if e.state == 'open' else 'reopen' }}" data-inline>
-    <input type="hidden" name="next" value="{{ next }}">
-    <button class="card-link plain" id="a{{ e.id }}" type="submit">{{ "Cancel" if e.state == "open" else "Restore" }}</button>
-  </form>
+  {%- if actions and e.state not in ("migrated", "scheduled") %}
+  <span class="acts">
+    {%- if e.kind == "task" and e.state == "open" %}
+    <button class="card-link plain" type="button" data-act="move" title="Move or reschedule (m)">Move</button>
+    {%- endif %}
+    <button class="card-link plain" type="button" data-act="edit" title="Edit (e)">Edit</button>
+    {%- if e.kind == "task" and e.state in ("open", "cancelled") %}
+    <form method="post" action="/entries/{{ e.id }}/{{ 'cancel' if e.state == 'open' else 'reopen' }}" data-inline>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="card-link plain" id="a{{ e.id }}" type="submit" title="{{ 'Cancel' if e.state == 'open' else 'Restore' }} (c)">{{ "Cancel" if e.state == "open" else "Restore" }}</button>
+    </form>
+    {%- endif %}
+  </span>
   {%- endif %}
+</li>
+{%- endmacro %}
+
+{% macro star() -%}
+<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.9l1.8 3.9 4.2.5-3.1 2.9.8 4.2L8 11.3l-3.7 2.1.8-4.2L2 6.3l4.2-.5z"/></svg>
+{%- endmacro %}
+
+{#- A meeting from Outlook: read-only, time-led, no tick box.
+    busy = filled; tentative = dashed edge; free / elsewhere = outline only; out of office = darker. -#}
+{% macro meeting(mr, roomy=false) -%}
+<li class="meeting {{ mr.kind }}{% if mr.m.all_day %} all-day{% endif %}{% if mr.past %} past{% endif %}">
+  <span class="time num">{{ mr.time }}</span>
+  <span class="subject">{{ mr.m.subject }}</span>
+  {%- if roomy and mr.m.location %}<span class="where">{{ mr.m.location }}</span>{% endif %}
+  {%- if mr.kind == "tentative" %}<span class="visually-hidden">(tentative)</span>{% elif mr.kind == "free" %}<span class="visually-hidden">(shown as free)</span>{% endif %}
 </li>
 {%- endmacro %}
 
 {% macro composer(targets, default, next, placeholder) -%}
 <form class="composer" method="post" action="/entries" data-inline data-composer>
   <input type="hidden" name="next" value="{{ next }}">
-  <fieldset class="segmented kinds">
-    <legend class="visually-hidden">Entry type</legend>
-    <label><input type="radio" name="kind" value="task" checked><span class="tick" aria-hidden="true"></span>Task</label>
-    <label><input type="radio" name="kind" value="note"><span class="sig dash" aria-hidden="true">–</span>Note</label>
-    <label><input type="radio" name="kind" value="event"><span class="sig star" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.9l1.8 3.9 4.2.5-3.1 2.9.8 4.2L8 11.3l-3.7 2.1.8-4.2L2 6.3l4.2-.5z"/></svg></span>Event</label>
-  </fieldset>
+  {{ kinds() }}
   {%- if targets | length > 1 %}
   <select class="input target" name="target" aria-label="Add to">
     {%- for value, label in targets %}
@@ -51,7 +71,16 @@
   {%- else %}
   <input type="hidden" name="target" value="{{ default }}">
   {%- endif %}
-  <input class="input text" name="text" required maxlength="500" autocomplete="off" aria-label="New entry" placeholder="{{ placeholder }}">
+  <input class="input text" name="text" required maxlength="500" autocomplete="off" aria-label="New entry" placeholder="{{ placeholder }}" title="Start with * for an event or - for a note">
   <button class="btn primary" type="submit">Add</button>
 </form>
+{%- endmacro %}
+
+{% macro kinds() -%}
+<fieldset class="segmented kinds">
+  <legend class="visually-hidden">Entry type</legend>
+  <label><input type="radio" name="kind" value="task" checked><span class="tick" aria-hidden="true"></span>Task</label>
+  <label><input type="radio" name="kind" value="note"><span class="sig dash" aria-hidden="true">–</span>Note</label>
+  <label><input type="radio" name="kind" value="event"><span class="sig star" aria-hidden="true">{{ star() }}</span>Event</label>
+</fieldset>
 {%- endmacro %}

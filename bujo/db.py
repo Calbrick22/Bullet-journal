@@ -43,6 +43,20 @@ MIGRATIONS = [
         value TEXT NOT NULL
     );
     """,
+    # 2: cached Outlook meetings (read-only copy; see calendar.py)
+    """
+    CREATE TABLE meetings (
+        id        TEXT PRIMARY KEY,      -- Outlook's event id
+        subject   TEXT NOT NULL,
+        start_utc TEXT NOT NULL,
+        end_utc   TEXT NOT NULL,
+        all_day   INTEGER NOT NULL DEFAULT 0,
+        location  TEXT NOT NULL DEFAULT '',
+        show_as   TEXT NOT NULL DEFAULT 'busy',
+        cancelled INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX meetings_by_start ON meetings (start_utc);
+    """,
 ]
 
 

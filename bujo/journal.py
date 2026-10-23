@@ -199,9 +199,12 @@ def add_entry(conn, kind: str, text: str, on: date | None = None, week: str | No
 
 
 def edit_text(conn, entry_id: int, text: str) -> Entry:
+    """Fix an entry's wording. Migrated/scheduled entries are history: edit the copy."""
     text = text.strip()
     if not text:
         raise JournalError("Entry text is empty")
+    if get_entry(conn, entry_id).state in ("migrated", "scheduled"):
+        raise JournalError("This entry has moved on; edit the newer copy")
     conn.execute(
         "UPDATE entries SET text = ?, updated_at = ? WHERE id = ?", (text, _now(), entry_id)
     )
@@ -254,11 +257,12 @@ def _move(conn, e: Entry, state: str, on_s: str | None, week_s: str | None, now:
 
 
 def move_task(conn, entry_id: int, on: date | None = None, week: str | None = None,
-              today: date | None = None) -> Entry:
+              today: date | None = None, mark: str | None = None) -> Entry:
     """Move an open task elsewhere, keeping history.
 
     Moving to a later date or week than today's marks the original
-    scheduled (<); anything else is a migration (>). Returns the new copy.
+    scheduled (<); anything else is a migration (>). `mark` forces one
+    ("migrated" for `>`). Returns the new copy.
     """
     e = get_entry(conn, entry_id)
     if e.kind != "task" or e.state != "open":
@@ -275,9 +279,33 @@ def move_task(conn, entry_id: int, on: date | None = None, week: str | None = No
         return get_entry(conn, e.id)
     today = today or dates.local_today()
     future = (on > today) if on else (dates.week_monday(week) > dates.week_monday(dates.week_key(today)))
+    if mark not in (None, "migrated", "scheduled"):
+        raise JournalError(f"Unknown mark {mark!r}")
     with transaction(conn):
-        new_id = _move(conn, e, "scheduled" if future else "migrated", on_s, week_s, _now())
+        new_id = _move(conn, e, mark or ("scheduled" if future else "migrated"), on_s, week_s, _now())
     return get_entry(conn, new_id)
+
+
+def forward_target(e: Entry, today: date, cal: dates.WorkCalendar) -> tuple[date | None, str | None]:
+    """Where `>` sends a task: one step forward.
+
+    A week-only task goes to the next week. A dated task goes to the next
+    working day after its date, or to the current working day if it's
+    already in the past.
+    """
+    if e.entry_week:
+        return None, dates.shift_week(e.entry_week, 1)
+    current = dates.carry_over_target(today, cal)
+    if e.entry_date < current:
+        return current, None
+    return cal.next_working_day(e.entry_date), None
+
+
+def move_forward(conn, entry_id: int, today: date | None = None, cal: dates.WorkCalendar | None = None) -> Entry:
+    today = today or dates.local_today()
+    cal = cal or load_calendar(conn)
+    on, week = forward_target(get_entry(conn, entry_id), today, cal)
+    return move_task(conn, entry_id, on=on, week=week, today=today, mark="migrated")
 
 
 def carry_over(conn, today: date | None = None, cal: dates.WorkCalendar | None = None) -> list[Entry]:

@@ -17,6 +17,9 @@
 1. ✅ Data model, date logic, carry-over, tests
 2. ✅ Design: deal app style, tokens, base CSS, static mock of the weekly spread
 3. ✅ Weekly spread + daily view, quick-add, done/cancel, carry-over on open
-4. Forward planning (future days/weeks), migrate/reschedule, keyboard shortcuts
-5. Calendar: Power Automate flow, JSON reader, local cache, meetings in views
+4. ✅ Forward planning (future log), migrate/reschedule, edit, keyboard shortcuts;
+   week view toggle: meetings only (default, a time grid) / meetings and tasks
+5. Calendar: ✅ JSON reader, local cache, meetings in week/day views (built early for the
+   week toggle). Left: build the flow on your account (`docs/calendar.md`) and check
+   it against a real export
 6. Settings (working days, leave), backup script, polish

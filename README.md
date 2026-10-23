@@ -21,7 +21,15 @@ py run.py --demo     # a throwaway sample journal to try things out
 ```
 
 Your data is one file, `data/journal.sqlite`. Copy it to back up. Optional settings go
-in `config.toml` (see `bujo/config.py`); it's git-ignored.
+in `config.toml` (see `bujo/config.py`); it's git-ignored. To show your Outlook meetings,
+set up the export in `docs/calendar.md` and add its `calendar_path` there.
+
+## Keyboard
+
+`n` add (start with `*` for an event, `-` for a note) · `j`/`k` next/previous entry ·
+`x` or Space tick · `>` migrate to the next working day · `m` or `<` move to a date or
+week · `e` edit · `c` cancel/restore · `[`/`]` previous/next · `t` today · `w` week ·
+`f` future log · `v` meetings / meetings and tasks · `?` all shortcuts.
 
 Tests: `py -m pip install -r requirements-dev.txt`, then `py -m pytest`.
 
@@ -33,13 +41,14 @@ Tests: `py -m pip install -r requirements-dev.txt`, then `py -m pytest`.
 | `bujo/holidays.py` | England & Wales bank holidays, calculated (works offline, any year) |
 | `bujo/db.py` | SQLite connection and versioned schema |
 | `bujo/journal.py` | Entries, done/cancel/move, carry-over |
+| `bujo/calendar.py` | Outlook meetings: Power Automate JSON reader, local cache, sync |
 | `bujo/views.py` | What each screen shows (labels, trails, the fact line, Ahead) |
 | `bujo/web.py`, `bujo/templates/` | The web app: server-rendered pages, plain form posts |
 | `bujo/demo.py` | Sample journal for `--demo` |
 | `bujo/static/css/tokens.css` | The design tokens: the only place colours and sizes are defined |
 | `docs/design.md` | The dealt style, tokens and journal conventions |
 | `docs/plan.md` | Milestones and decisions |
-| `docs/calendar.md` | Power Automate → OneDrive calendar export setup |
+| `docs/calendar.md` | Setting up the Power Automate calendar export |
 
 ## Behaviour notes
 

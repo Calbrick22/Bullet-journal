@@ -57,6 +57,19 @@ notes a **dash**. Every mark sits in the same fixed 16px slot, so text always li
   "4th day", plus the trail (Mon › Tue › Wed › Thu) in the day view and Rolling over.
   Future-scheduled = quiet grey "planned on 9 Oct".
 
+## Week view (milestone 4)
+
+- **Two modes, chosen by a toggle and remembered (cookie):** *Meetings* (default) and
+  *Meetings and tasks*. `v` switches.
+- **Meetings mode is a time grid:** 08:00–18:00 (widened for earlier or later meetings),
+  56px an hour, an hour gutter on the left, faint hour lines, clashing meetings side by
+  side. Past meetings turn grey; today is the white column with a 2px teal line at the
+  current time. Blocks under 44px show only the subject, with the time on hover and for
+  screen readers, since the position already gives the time. Phones get the same
+  meetings as a list per day, today first.
+- **Meeting marks** (shape as well as fill): busy filled; tentative dashed edge; free /
+  working elsewhere outline only; out of office a darker step.
+
 ## Departures from the sheet
 
 - **No count tiles.** The home pattern's four KPI tiles are left out: the greeting's fact
@@ -65,6 +78,16 @@ notes a **dash**. Every mark sits in the same fixed 16px slot, so text always li
   48px. It drops to 28px on a phone.
 
 ## Gate log
+
+- Milestone 4 (`--demo`, today pinned to Thu 22 Oct 09:00): `lint.mjs --app` 0 FAIL,
+  1 WARN (dialog shadow, marked deliberate: dialogs float). `inspect.mjs --app` at
+  1440/768/390 on week (meetings), week (all), day and future log: 0 FAIL each; WARNs:
+  title size (all, accepted) and day-view `ragged-row` (accepted: two independent lists
+  whose lengths change daily). Fixed across three rounds: the demo clock (now pinned with
+  the date), past meetings greyed instead of faded, the meetings week rebuilt as a time
+  grid (was a void), short meetings clipped, 12px text share, a text block at the 768px
+  edge, the phone future-log composer. In-browser (Playwright): j/k, x, e, >, m, n with
+  the `*` prefix, ?, w, v, ], f all work, focus kept, no console errors.
 
 - Milestone 3 (live app, `--demo` data, today pinned to 2026-10-22): `lint.mjs --app` on
   templates, CSS and JS: 0 FAIL / 0 WARN. `inspect.mjs --app` at 1440/768/390: week and

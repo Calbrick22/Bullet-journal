@@ -91,7 +91,7 @@
 .meetings { display: grid; gap: 6px; margin-bottom: 14px; }
 .meeting { display: grid; padding: 6px 10px; border-radius: var(--radius-row); background: var(--meeting-bg); border: 1px solid var(--meeting-edge); color: var(--meeting-ink); }
 .meeting .time { font-size: var(--fs-small); line-height: 16px; }
-.meeting .subject { font-size: var(--fs-small); line-height: 16px; font-weight: 500; }
+.meeting .subject { font-size: 13px; line-height: 17px; font-weight: 500; }
 
 .lower { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); margin-top: 40px; align-items: start; }
 .lower .panel > header { margin-bottom: 4px; }
@@ -164,4 +164,121 @@
   .entry { line-height: 22px; }
   .day-sheet { padding: 4px 16px; }
   .day-side { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- milestone 4: week toggle, meetings, keyboard focus, dialogs, future log ---------- */
+.controls { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.controls .composer { flex: 1; margin-bottom: 0; }
+.view-toggle { display: inline-flex; flex: none; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); }
+.view-toggle a { display: inline-flex; align-items: center; height: 30px; padding: 0 14px; border-radius: var(--radius-control); color: var(--muted); transition: background-color var(--t-hover) ease, color var(--t-hover) ease; }
+.view-toggle a:hover { color: var(--text); }
+.view-toggle a[aria-current] { background: var(--active); color: var(--text); }
+
+/* meetings: busy = filled tint; tentative = dashed edge; free / elsewhere = outline only;
+   out of office = a darker step. Kind is told by the edge as well as the fill */
+.meetings.compact { gap: 4px; margin-bottom: 12px; }
+.meetings.compact .meeting { padding: 4px 8px; border-radius: 10px; }
+.meeting .where { font-size: var(--fs-small); line-height: 16px; opacity: 0.85; }
+.meeting.tentative { border-style: dashed; border-color: var(--meeting-ink); background: var(--raised); }
+.meeting.free, .meeting.workingelsewhere { background: var(--raised); }
+.meeting.oof { background: var(--meeting-edge); }
+.meeting.all-day { padding-top: 3px; padding-bottom: 3px; }
+.meeting.past { background: var(--surface); border-color: var(--border); color: var(--muted); }
+.meetings-only .meetings { gap: 8px; }
+.meetings-only .meeting { padding: 8px 12px; }
+.meetings-only .meeting .subject { font-size: var(--fs-body); line-height: 20px; }
+.meetings-only .day { min-height: 320px; }
+.booked { margin: -6px 0 12px; font-size: var(--fs-small); color: var(--muted); }
+
+/* the entry the keyboard is on */
+.entry:focus { outline: none; }
+.entry:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.day-sheet .entry:focus-visible { outline-offset: -1px; border-radius: 8px; }
+.acts { display: inline-flex; align-items: center; gap: 12px; }
+.acts form { display: contents; }
+
+/* sidebar */
+.keys-link { width: 100%; border: 0; background: none; font: inherit; cursor: pointer; text-align: left; }
+.sync.problem { color: var(--warning); }
+
+/* dialogs float, so they may cast a shadow */
+dialog.sheet { width: min(480px, calc(100vw - 32px)); padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--ground); color: var(--text); box-shadow: var(--shadow-float); } /* taste-skill-ignore: dialogs float */
+dialog.sheet::backdrop { background: var(--backdrop); }
+dialog.sheet h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; overflow-wrap: anywhere; }
+dialog.sheet h2 [data-fill] { font-weight: 400; color: var(--muted); }
+.choices { display: grid; gap: 4px; margin: 0 0 12px; padding: 0; border: 0; }
+.choices label { display: flex; align-items: center; gap: 10px; min-height: 40px; cursor: pointer; }
+.choices label .input { margin-left: auto; height: 34px; }
+.choices .meta { color: var(--muted); }
+.choices kbd { margin-left: auto; }
+.input.wide { width: 100%; margin-bottom: 16px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.keys { display: grid; gap: 10px; margin-bottom: 16px; }
+.keys div { display: grid; grid-template-columns: 96px 1fr; gap: 12px; }
+.keys dd { color: var(--muted); }
+kbd { display: inline-block; min-width: 20px; padding: 0 5px; border: 1px solid var(--control); border-radius: 5px; font: inherit; font-size: var(--fs-small); line-height: 18px; text-align: center; color: var(--text); opacity: 1; }
+
+/* future log: 8 + 4 -> 724 + 16 + 360 = 1100 */
+.future-composer .when-field { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); flex: none; }
+.future-composer .when-field .input { width: auto; }
+.future-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); align-items: start; }
+.future-list { grid-column: span 8; display: grid; gap: 28px; }
+.month h2 { font-size: var(--fs-section); font-weight: 600; margin-bottom: 4px; }
+.month .row { min-height: 44px; padding: 10px 0; gap: 12px; }
+.month .row + .row { border-top-color: var(--rule); }
+.month .entry { grid-template-columns: 16px minmax(0, 1fr) auto; }
+.weeks-ahead { grid-column: span 4; }
+.weeks-ahead header { margin-bottom: 4px; }
+.weeks-ahead th, .weeks-ahead td { padding-left: 0; padding-right: 0; }
+.weeks-ahead th.n, .weeks-ahead td.n { padding-left: 12px; }
+.weeks-ahead td a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+@media (max-width: 1180px) {
+  .controls { flex-wrap: wrap; }
+  .controls .composer { flex-basis: 100%; }
+  .future-list, .weeks-ahead { grid-column: 1 / -1; }
+  .future-composer { flex-wrap: wrap; }
+}
+@media (max-width: 640px) {
+  .view-toggle { display: flex; width: 100%; }
+  .view-toggle a { flex: 1; justify-content: center; height: 38px; }
+  .meetings-only .day { min-height: 0; }
+  .future-composer .when-field { flex: 1; }
+  .future-composer .text { flex-basis: 100%; order: 1; height: 44px; }
+  .future-composer .btn { order: 2; margin-left: auto; }
+  .future-composer .when-field .input { flex: 1; min-width: 0; height: 44px; }
+}
+
+/* ---------- week, meetings only: a time grid ----------
+   Columns: a 48px hour gutter, then one per day. Every column stacks the same three rows
+   (head, all-day, track) at fixed heights, so the tracks line up across the week. */
+.timegrid { grid-template-columns: 48px repeat(var(--cols), minmax(0, 1fr)); }
+.timegrid .day, .timegrid .hours { min-height: 0; padding: var(--card-pad) 8px; }
+.timegrid .hours { border-left: 0; padding-right: 0; }
+.timegrid .day:nth-child(2) { border-left: 0; }
+.timegrid .day.today { margin: 0; padding: var(--card-pad) 8px; border: 0; border-left: 1px solid var(--border); border-radius: 0; background: var(--raised); }
+.timegrid .day.today + .day { border-left: 1px solid var(--border); }
+.timegrid .day-head { height: 44px; margin: 0 0 4px; padding: 0 4px; display: block; }
+.timegrid .day-head h2 { display: flex; justify-content: space-between; align-items: baseline; }
+.timegrid .booked { margin: 2px 0 0; }
+.timegrid .allday { height: calc(var(--allday) * 30px); display: grid; align-content: start; gap: 4px; margin-bottom: 8px; }
+.timegrid .allday .meeting { padding: 3px 8px; border-radius: 8px; }
+.timegrid .track { position: relative; height: var(--track); margin: 0; }
+.timegrid .hours .track span { position: absolute; right: 8px; transform: translateY(-50%); font-size: var(--fs-small); color: var(--muted); font-variant-numeric: tabular-nums; }
+.timegrid .hours .track span:first-child { transform: none; }
+.hour-line { position: absolute; left: -8px; right: -8px; height: 0; border-top: 1px solid var(--rule); }
+.timegrid .track .meeting { position: absolute; z-index: 1; overflow: hidden;
+  left: calc(var(--lane) * 100% / var(--lanes)); width: calc(100% / var(--lanes) - 2px);
+  padding: 3px 8px; border-radius: 8px; display: block; line-height: 16px; }
+.timegrid .track .meeting .time { font-size: var(--fs-small); }
+.timegrid .track .meeting .subject { font-size: 13px; font-weight: 500; }
+.timegrid .track .meeting:not(.short) .time { display: block; }
+.timegrid .track .meeting .where { display: block; font-size: var(--fs-small); }
+.timegrid .track .meeting.short { padding-top: 3px; padding-bottom: 0; }
+.timegrid .track .meeting.short .subject { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; overflow-wrap: anywhere; }
+.now-line { position: absolute; z-index: 2; left: -8px; right: -8px; height: 0; border-top: 2px solid var(--accent); }
+.meetings-only { display: none; }
+@media (max-width: 640px) {
+  .timegrid { display: none; }
+  .meetings-only { display: grid; }
 }

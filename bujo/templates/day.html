@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import entry, composer %}
+{% from "_macros.html" import entry, meeting, composer %}
 {% block content %}
 <div class="title-row">
   <div>
@@ -28,7 +28,13 @@
   <div class="day-side">
     <section class="panel" aria-labelledby="meetings-h">
       <header><h2 id="meetings-h">Meetings</h2></header>
-      <p class="quiet">Outlook meetings appear here once calendar sync is set up.</p>
+      {% if meetings %}
+      <ul class="meetings">{% for mr in meetings %}{{ meeting(mr, roomy=true) }}{% endfor %}</ul>
+      {% elif calendar.text == "Calendar not set up" %}
+      <p class="quiet">Outlook meetings appear here once the calendar export is set up.</p>
+      {% else %}
+      <p class="quiet">No meetings</p>
+      {% endif %}
     </section>
     <section class="panel" aria-labelledby="coming-h">
       <header><h2 id="coming-h">Next: <a href="/day/{{ next_day.isoformat() }}">{{ next_label }}</a></h2>{% if coming_more %}<span class="meta">{{ coming_more }} more</span>{% endif %}</header>

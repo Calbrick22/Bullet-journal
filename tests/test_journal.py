@@ -25,7 +25,8 @@ def test_schema_is_versioned_and_reopenable(tmp_path):
     path = tmp_path / "j.sqlite"
     connect(path).close()
     c = connect(path)  # second open must not re-run migrations
-    assert c.execute("PRAGMA user_version").fetchone()[0] == 1
+    from bujo.db import MIGRATIONS
+    assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRATIONS)
     c.close()
 
 
@@ -232,3 +233,40 @@ def test_unique_link_blocks_duplicate_copies(conn):
             "INSERT INTO entries (kind, text, entry_date, moved_from_id, created_at, updated_at) "
             "VALUES ('task', 'x', '2026-10-22', ?, 'now', 'now')", (t.id,),
         )
+
+
+# --- Moving forward (">") and editing ----------------------------------------
+
+def test_forward_from_today_goes_to_next_working_day(conn):
+    t = j.add_entry(conn, "task", "Fri task", on=d("2026-10-23"))
+    copy = j.move_forward(conn, t.id, today=d("2026-10-23"))
+    assert copy.entry_date == d("2026-10-26")                 # over the weekend
+    assert j.get_entry(conn, t.id).state == "migrated"        # ">" is always a migration
+    assert copy.carry_count == 1
+
+
+def test_forward_skips_bank_holiday(conn):
+    t = j.add_entry(conn, "task", "Before Christmas", on=d("2026-12-24"))
+    assert j.move_forward(conn, t.id, today=d("2026-12-24")).entry_date == d("2026-12-29")
+
+
+def test_forward_of_a_past_task_lands_today(conn):
+    t = j.add_entry(conn, "task", "Old", on=d("2026-10-19"))
+    copy = j.move_forward(conn, t.id, today=d("2026-10-22"))
+    assert copy.entry_date == d("2026-10-22") and copy.carry_count == 1
+    assert j.get_entry(conn, t.id).state == "migrated"
+
+
+def test_forward_of_week_task_goes_to_next_week(conn):
+    t = j.add_entry(conn, "task", "Sometime", week="2026-W53")
+    assert j.move_forward(conn, t.id, today=d("2026-12-29")).entry_week == "2027-W01"
+
+
+def test_edit_text(conn):
+    t = j.add_entry(conn, "task", "Typo here", on=d("2026-10-22"))
+    assert j.edit_text(conn, t.id, "  Fixed  ").text == "Fixed"
+    with pytest.raises(j.JournalError):
+        j.edit_text(conn, t.id, " ")
+    j.move_forward(conn, t.id, today=d("2026-10-22"))
+    with pytest.raises(j.JournalError):
+        j.edit_text(conn, t.id, "Rewrite history")

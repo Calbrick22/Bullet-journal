@@ -1,14 +1,18 @@
 """What each screen shows, built from the database. No HTML here, no writes."""
 
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
-from . import dates, journal as j
+from . import calendar as calmod, dates, journal as j
+from .calendar import Meeting
 from .journal import Entry
 
 AHEAD_ROWS = 4
-NEXT_ROWS = 5          # the day view's preview of the next working day
-DAYS_OFF_HORIZON = 120  # how far ahead "Ahead" looks for days off
+NEXT_ROWS = 5            # the day view's preview of the next working day
+DAYS_OFF_HORIZON = 120   # how far ahead "Ahead" looks for days off
+FUTURE_HORIZON = 365     # how far ahead the future log looks for days off
+FUTURE_WEEKS = 6         # weeks listed in the future log's side panel
+BOOKED = {"busy", "tentative", "oof"}   # what counts towards "booked" time
 
 
 # --- Formatting -------------------------------------------------------------
@@ -47,6 +51,13 @@ def week_range(key: str) -> str:        # "19–23 Oct" or "28 Dec – 1 Jan"
     return f"{first.day} {first:%b} – {last.day} {last:%b}"
 
 
+def duration(minutes: int) -> str:      # "3 h 30 m", "45 m", "2 h"
+    h, m = divmod(minutes, 60)
+    if h and m:
+        return f"{h} h {m} m"
+    return f"{h} h" if h else f"{m} m"
+
+
 def where(e: Entry, near: date) -> str:
     """Where an entry lives, as briefly as is clear from `near`."""
     if e.entry_week:
@@ -63,6 +74,7 @@ class Row:
     e: Entry
     note: str | None = None             # "to Thu", "planned on 9 Oct"
     trail: list[str] = field(default_factory=list)   # ["Mon", "Tue", "Wed", "Thu"]
+    forward: str = ""                   # where ">" would send it: "Fri 23", "Week 45"
 
     @property
     def carried(self) -> bool:
@@ -73,7 +85,8 @@ class Row:
         return f"{ordinal(len(self.trail))} day"
 
 
-def rows_for(conn, entries: list[Entry], near: date) -> list[Row]:
+def rows_for(conn, entries: list[Entry], near: date, today: date | None = None,
+             cal: dates.WorkCalendar | None = None) -> list[Row]:
     copies = j.copies_of(conn, [e.id for e in entries if e.state in ("migrated", "scheduled")])
     sources = j.entries_by_id(conn, [e.moved_from_id for e in entries if e.moved_from_id])
     out = []
@@ -84,12 +97,123 @@ def rows_for(conn, entries: list[Entry], near: date) -> list[Row]:
         elif e.moved_from_id and sources[e.moved_from_id].state == "scheduled":
             src = sources[e.moved_from_id]
             row.note = f"planned on {src.entry_date.day} {src.entry_date:%b}" if src.entry_date else f"planned in {week_label(src.entry_week)}"
-        if e.kind == "task" and e.state == "open" and e.carry_count > 0:
-            chain = [x for x in j.history(conn, e.id) if x.carry_count <= e.carry_count]
-            here = e.entry_date or dates.week_monday(e.entry_week)
-            row.trail = [where(x, here) for x in chain]
+        if e.kind == "task" and e.state == "open":
+            if e.carry_count > 0:
+                chain = [x for x in j.history(conn, e.id) if x.carry_count <= e.carry_count]
+                here = e.entry_date or dates.week_monday(e.entry_week)
+                row.trail = [where(x, here) for x in chain]
+            if today and cal:
+                on, week = j.forward_target(e, today, cal)
+                row.forward = short_day(on) if on else week_label(week)
         out.append(row)
     return out
+
+
+# --- Meetings ---------------------------------------------------------------
+
+@dataclass
+class MeetingRow:
+    m: Meeting
+    time: str                           # "09:30–10:00" or "All day"
+    kind: str                           # busy / tentative / free / oof / workingelsewhere
+    past: bool = False
+    # Placement in the week's time grid (pixels, and side-by-side lanes for clashes)
+    top: int = 0
+    height: int = 0
+    lane: int = 0
+    lanes: int = 1
+
+
+def meeting_rows(meetings: list[Meeting], d: date, now: datetime) -> list[MeetingRow]:
+    out = []
+    for m in meetings:
+        if m.all_day:
+            time = "All day"
+        else:
+            s, e = m.local_start(), m.local_end()
+            # A meeting that started before this day, or runs past it
+            start = f"{s:%H:%M}" if s.date() == d else "…"
+            end = f"{e:%H:%M}" if e.date() == d or (e.date() == d + timedelta(days=1) and e.hour == 0 and e.minute == 0) else "…"
+            time = f"{start}–{end}"
+        out.append(MeetingRow(m, time, m.show_as, past=m.end <= now))
+    return out
+
+
+HOUR_PX = 56          # time grid: pixels per hour
+MIN_BLOCK_PX = 22     # a 15-minute meeting still shows its time
+
+
+def grid_hours(rows: list[MeetingRow]) -> tuple[int, int]:
+    """The week's visible hours: 08:00-18:00, widened to fit early or late meetings."""
+    timed = [r.m for r in rows if not r.m.all_day]
+    first = min([8] + [m.local_start().hour for m in timed])
+    last = max([18] + [m.local_end().hour + (1 if m.local_end().minute else 0) for m in timed])
+    return max(0, first), min(24, last)
+
+
+def lay_out(rows: list[MeetingRow], d: date, first_hour: int, last_hour: int) -> None:
+    """Position each timed meeting in the day's track; clashing meetings share
+    the width in lanes (greedy interval partitioning per cluster)."""
+    timed = [r for r in rows if not r.m.all_day]
+    span = (last_hour - first_hour) * 60
+    for r in timed:
+        s, e = r.m.local_start(), r.m.local_end()
+        start = (s.hour * 60 + s.minute) if s.date() == d else 0
+        end = (e.hour * 60 + e.minute) if e.date() == d else 24 * 60
+        top = max(0, min(span, start - first_hour * 60))
+        bottom = max(top, min(span, end - first_hour * 60))
+        r.top = round(top * HOUR_PX / 60)
+        r.height = max(MIN_BLOCK_PX, round((bottom - top) * HOUR_PX / 60) - 2)
+    cluster: list[MeetingRow] = []
+    lane_ends: list[datetime] = []
+    cluster_end: datetime | None = None
+
+    def finish():
+        for c in cluster:
+            c.lanes = len(lane_ends)
+
+    for r in sorted(timed, key=lambda r: (r.m.start, r.m.end)):
+        if cluster and r.m.start >= cluster_end:
+            finish()
+            cluster, lane_ends, cluster_end = [], [], None
+        free = next((i for i, end in enumerate(lane_ends) if end <= r.m.start), None)
+        if free is None:
+            lane_ends.append(r.m.end)
+            r.lane = len(lane_ends) - 1
+        else:
+            lane_ends[free] = r.m.end
+            r.lane = free
+        cluster.append(r)
+        cluster_end = r.m.end if cluster_end is None else max(cluster_end, r.m.end)
+    finish()
+
+
+def booked_minutes(meetings: list[Meeting]) -> int:
+    return sum(m.minutes for m in meetings if not m.all_day and m.show_as in BOOKED)
+
+
+def next_meeting(meetings: list[Meeting], now: datetime) -> Meeting | None:
+    upcoming = [m for m in meetings if not m.all_day and m.start > now]
+    return min(upcoming, key=lambda m: m.start) if upcoming else None
+
+
+@dataclass
+class CalendarLine:
+    text: str
+    problem: bool = False
+
+
+def calendar_line(status: calmod.Status, now: datetime) -> CalendarLine:
+    if not status.configured:
+        return CalendarLine("Calendar not set up")
+    if status.error:
+        return CalendarLine(status.error, problem=True)
+    if not status.exported_at:
+        return CalendarLine("Outlook export found")
+    local = dates.to_local(status.exported_at)
+    when = f"{local:%H:%M}" if local.date() == dates.local_today(now) else f"{local.day} {local:%b}, {local:%H:%M}"
+    stale = now - status.exported_at > timedelta(hours=2)
+    return CalendarLine(f"Outlook as of {when}" + (" (not updating?)" if stale else ""), problem=stale)
 
 
 # --- Shared pieces ----------------------------------------------------------
@@ -124,18 +248,18 @@ def days_off_after(cal: dates.WorkCalendar, reasons: dict[date, str], start: dat
     return items
 
 
-def ahead(conn, cal, week: str, near: date) -> tuple[list[AheadItem], int]:
-    entries = j.entries_after(conn, week)
-    rows = rows_for(conn, entries, near)
+def planned_after(conn, cal, week: str, today: date, horizon: int) -> list[AheadItem]:
+    """Open entries and days off after a week, in date order."""
+    rows = rows_for(conn, j.entries_after(conn, week), today, today, cal)
     items = [
         AheadItem(on=r.e.entry_date or dates.week_monday(r.e.entry_week),
                   when=day_month(r.e.entry_date) if r.e.entry_date else week_label(r.e.entry_week), row=r)
         for r in rows
     ]
     start = dates.week_dates(week)[-1] + timedelta(days=1)
-    items += days_off_after(cal, j.day_off_reasons(conn), start, DAYS_OFF_HORIZON)
+    items += days_off_after(cal, j.day_off_reasons(conn), start, horizon)
     items.sort(key=lambda a: (a.on, a.row is None))
-    return items[:AHEAD_ROWS], max(0, len(items) - AHEAD_ROWS)
+    return items
 
 
 def rolling(conn, cal, today: date) -> list[Row]:
@@ -170,47 +294,91 @@ class DayCol:
     is_past: bool
     off: str | None
     rows: list[Row]
+    meetings: list[MeetingRow]
+    booked: int = 0                     # minutes
 
     @property
     def open_tasks(self) -> int:
         return sum(1 for r in self.rows if r.e.kind == "task" and r.e.state == "open")
 
+    @property
+    def booked_label(self) -> str:
+        return duration(self.booked) if self.booked else ""
 
-def week_view(conn, key: str, today: date) -> dict:
+    @property
+    def n_meetings(self) -> int:
+        return sum(1 for mr in self.meetings if not mr.m.all_day)
+
+
+WEEK_SHOW = ("meetings", "all")
+
+
+def week_view(conn, key: str, today: date, now: datetime, show: str = "meetings") -> dict:
     cal = j.load_calendar(conn)
     reasons = j.day_off_reasons(conn)
     by_day, unplaced = j.entries_for_week(conn, key)
-    cols = [
-        DayCol(d, short_day(d), d == today, d < today, off_reason(cal, reasons, d), rows_for(conn, es, d))
-        for d, es in by_day.items()
-        if d.weekday() in cal.working_weekdays or cal.is_working_day(d) or es
-    ]
+    cols = []
+    all_meetings: list[Meeting] = []
+    for d, es in by_day.items():
+        ms = calmod.meetings_on(conn, d)
+        if not (d.weekday() in cal.working_weekdays or cal.is_working_day(d) or es or ms):
+            continue
+        all_meetings += [m for m in ms if m not in all_meetings]
+        cols.append(DayCol(d, short_day(d), d == today, d < today, off_reason(cal, reasons, d),
+                           rows_for(conn, es, d, today, cal), meeting_rows(ms, d, now), booked_minutes(ms)))
     monday = dates.week_monday(key)
     is_current = key == dates.week_key(today)
     year, number = dates.parse_week_key(key)
-    open_total = sum(c.open_tasks for c in cols)
 
-    if is_current:
+    n_meetings = sum(1 for m in all_meetings if not m.all_day)
+    week_meetings = f"{plural(n_meetings, 'meeting')}, {duration(booked_minutes(all_meetings))}" if n_meetings else "no meetings"
+    if show == "meetings":
+        nxt = next_meeting(all_meetings, now)
+        if is_current:
+            title = f"{today:%A}, week {number}"
+            facts = f"{today.day} {today:%B} · {week_meetings} this week"
+            if nxt:
+                when = f"{nxt.local_start():%H:%M}" if nxt.local_start().date() == today else f"{nxt.local_start():%a} {nxt.local_start():%H:%M}"
+                facts += f" · next: {nxt.subject} at {when}"
+        else:
+            title = week_label(key)
+            facts = f"{week_range(key)} {year} · {week_meetings}"
+    elif is_current:
         target = dates.carry_over_target(today, cal)
         today_rows = rows_for(conn, j.entries_for_day(conn, target), target)
         open_today = sum(1 for r in today_rows if r.e.kind == "task" and r.e.state == "open")
         title = f"{today:%A}, week {number}"
         facts = f"{today.day} {today:%B} · {open_today} open today · {carried_fact(today_rows)}"
     else:
+        open_total = sum(c.open_tasks for c in cols)
         done = sum(1 for c in cols for r in c.rows if r.e.state == "done")
         title = week_label(key)
         facts = f"{week_range(key)} {year} · {plural(open_total, 'open task')} · {done} done"
 
+    first_hour, last_hour = grid_hours([r for c in cols for r in c.meetings])
+    for c in cols:
+        lay_out(c.meetings, c.date, first_hour, last_hour)
+    now_local = dates.to_local(now)
+    now_px = None
+    if is_current and first_hour <= now_local.hour < last_hour:
+        now_px = round(((now_local.hour - first_hour) * 60 + now_local.minute) * HOUR_PX / 60)
+    grid = {
+        "hours": [(h, f"{h:02d}:00", (h - first_hour) * HOUR_PX) for h in range(first_hour, last_hour)],
+        "height": (last_hour - first_hour) * HOUR_PX,
+        "all_day_rows": max([0] + [sum(1 for r in c.meetings if r.m.all_day) for c in cols]),
+        "now_px": now_px,
+    }
+
     targets = [(f"d:{c.date.isoformat()}", c.label) for c in cols] + [(f"w:{key}", "No day yet")]
     default = f"d:{today.isoformat()}" if any(c.is_today for c in cols) else f"w:{key}"
-    ahead_items, ahead_more = ahead(conn, cal, key, today)
+    ahead_items = planned_after(conn, cal, key, today, DAYS_OFF_HORIZON)
     return {
-        "key": key, "title": title, "facts": facts, "is_current": is_current,
+        "key": key, "title": title, "facts": facts, "is_current": is_current, "show": show, "grid": grid,
         "prev_key": dates.shift_week(key, -1), "next_key": dates.shift_week(key, 1),
         "prev_label": week_label(dates.shift_week(key, -1)), "next_label": week_label(dates.shift_week(key, 1)),
-        "days": cols, "unplaced": rows_for(conn, unplaced, monday),
+        "days": cols, "unplaced": rows_for(conn, unplaced, monday, today, cal),
         "targets": targets, "default_target": default,
-        "ahead": ahead_items, "ahead_more": ahead_more,
+        "ahead": ahead_items[:AHEAD_ROWS], "ahead_more": max(0, len(ahead_items) - AHEAD_ROWS),
         "rolling": rolling(conn, cal, today),
         "phone_title": f"Week {number}",
     }
@@ -218,29 +386,86 @@ def week_view(conn, key: str, today: date) -> dict:
 
 # --- Day --------------------------------------------------------------------
 
-def day_view(conn, d: date, today: date) -> dict:
+def day_view(conn, d: date, today: date, now: datetime) -> dict:
     cal = j.load_calendar(conn)
     reasons = j.day_off_reasons(conn)
-    rows = rows_for(conn, j.entries_for_day(conn, d), d)
+    rows = rows_for(conn, j.entries_for_day(conn, d), d, today, cal)
     key = dates.week_key(d)
     _, unplaced = j.entries_for_week(conn, key)
+    ms = calmod.meetings_on(conn, d)
     open_n = sum(1 for r in rows if r.e.kind == "task" and r.e.state == "open")
     done_n = sum(1 for r in rows if r.e.state == "done")
     _, number = dates.parse_week_key(key)
+    n_meetings = sum(1 for m in ms if not m.all_day)
     facts = f"Week {number} · {open_n} open, {done_n} done"
+    if n_meetings:
+        facts += f" · {plural(n_meetings, 'meeting')}, {duration(booked_minutes(ms))}"
     if d == dates.carry_over_target(today, cal):
         facts += f" · {carried_fact(rows)}"
     off = off_reason(cal, reasons, d)
     if off:
         facts = f"{off} · " + facts
+    nxt = cal.next_working_day(d)
+    coming = j.entries_for_day(conn, nxt)
     return {
         "date": d, "title": long_day(d), "facts": facts, "is_today": d == today,
         "week_key": key, "week_label": f"Week {number}",
-        "prev_day": cal.previous_working_day(d), "next_day": cal.next_working_day(d),
-        "prev_label": short_day(cal.previous_working_day(d)), "next_label": short_day(cal.next_working_day(d)),
-        "rows": rows, "unplaced": rows_for(conn, unplaced, d),
-        "coming": rows_for(conn, j.entries_for_day(conn, cal.next_working_day(d)), d)[:NEXT_ROWS],
-        "coming_more": max(0, len(j.entries_for_day(conn, cal.next_working_day(d))) - NEXT_ROWS),
+        "prev_day": cal.previous_working_day(d), "next_day": nxt,
+        "prev_label": short_day(cal.previous_working_day(d)), "next_label": short_day(nxt),
+        "rows": rows, "unplaced": rows_for(conn, unplaced, d, today, cal),
+        "meetings": meeting_rows(ms, d, now),
+        "coming": rows_for(conn, coming, d)[:NEXT_ROWS], "coming_more": max(0, len(coming) - NEXT_ROWS),
         "targets": [(f"d:{d.isoformat()}", short_day(d))], "default_target": f"d:{d.isoformat()}",
         "phone_title": short_day(d),
+    }
+
+
+# --- Future log -------------------------------------------------------------
+
+@dataclass
+class WeekLoad:
+    key: str
+    label: str
+    range: str
+    planned: int
+    meetings: int
+    booked: int
+
+    @property
+    def booked_label(self) -> str:
+        return duration(self.booked) if self.booked else "–"
+
+
+def future_view(conn, today: date) -> dict:
+    cal = j.load_calendar(conn)
+    this_week = dates.week_key(today)
+    items = planned_after(conn, cal, this_week, today, FUTURE_HORIZON)
+    months: list[tuple[str, list[AheadItem]]] = []
+    for a in items:
+        label = f"{a.on:%B %Y}"
+        if not months or months[-1][0] != label:
+            months.append((label, []))
+        months[-1][1].append(a)
+
+    loads = []
+    for i in range(1, FUTURE_WEEKS + 1):
+        key = dates.shift_week(this_week, i)
+        days = dates.week_dates(key)
+        start, _ = dates.day_bounds_utc(days[0])
+        _, end = dates.day_bounds_utc(days[-1])
+        ms = calmod.meetings_between(conn, start, end)
+        by_day, unplaced = j.entries_for_week(conn, key)
+        planned = sum(1 for es in by_day.values() for e in es if e.state == "open") + sum(1 for e in unplaced if e.state == "open")
+        loads.append(WeekLoad(key, week_label(key), week_range(key), planned,
+                              sum(1 for m in ms if not m.all_day), booked_minutes(ms)))
+
+    n = sum(1 for a in items if a.row)
+    return {
+        "title": "Future log",
+        "facts": f"{n} {'entry' if n == 1 else 'entries'} planned after this week" if n
+                 else "Nothing planned after this week yet",
+        "months": months, "loads": loads,
+        "min_date": (today + timedelta(days=1)).isoformat(),
+        "default_week": dates.shift_week(this_week, 1),
+        "phone_title": "Future log",
     }

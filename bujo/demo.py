@@ -5,7 +5,9 @@ carry-over, history and trails are produced exactly as they would be in use.
 Everything here is made-up sample content.
 """
 
-from datetime import date, timedelta
+import json
+from datetime import date, datetime, time, timedelta, timezone
+from pathlib import Path
 
 from . import dates, journal as j
 
@@ -68,3 +70,45 @@ def seed(conn, today: date) -> None:
     j.add_entry(conn, "task", "Book the dentist", on=next_monday + timedelta(days=10))
     for i in range(3):  # three days' leave in three weeks' time
         j.set_day_override(conn, monday + timedelta(weeks=3, days=i), working=False, reason="Annual leave")
+
+
+# Meetings per weekday: (start, end, subject, location, showAs). Repeated each week.
+MEETINGS = {
+    0: [("09:30", "10:00", "Weekly ops stand-up", "Teams", "busy"), ("14:00", "15:00", "Q4 planning", "Room 3.12", "busy")],
+    1: [("10:00", "10:30", "1:1 with Hannah", "", "busy"), ("13:00", "14:00", "Supplier call: Brightline", "Teams", "busy"),
+        ("16:00", "16:30", "Budget check-in", "", "tentative")],
+    2: [("09:30", "10:00", "Weekly ops stand-up", "Teams", "busy"), ("11:30", "12:30", "Vendor demo: Fieldline", "Room 2.04", "busy"),
+        ("15:00", "15:30", "Hiring sync", "", "busy")],
+    3: [("09:30", "10:00", "Weekly ops stand-up", "Teams", "busy"), ("11:00", "12:00", "Ops review", "Room 3.12", "busy"),
+        ("14:00", "14:30", "1:1 with Sam", "", "busy"), ("16:30", "17:00", "Quarterly numbers with Priya", "Teams", "busy")],
+    4: [("09:30", "10:00", "Weekly ops stand-up", "Teams", "busy"), ("12:30", "13:30", "Team lunch", "The Crown", "free")],
+}
+
+
+def _pa_utc(d: date, hhmm: str) -> str:
+    """A local time as Power Automate writes it: UTC, seven fractional digits, no offset."""
+    local = datetime.combine(d, time.fromisoformat(hhmm), dates.LOCAL_TZ)
+    return local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.0000000")
+
+
+def write_calendar(path: Path, today: date) -> None:
+    """A sample Power Automate export: last week to six weeks ahead."""
+    monday = dates.week_monday(dates.week_key(today))
+    first, last = monday - timedelta(weeks=1), monday + timedelta(weeks=6)
+    events = []
+    d = first
+    while d < last:
+        for i, (s, e, subject, where, show) in enumerate(MEETINGS.get(d.weekday(), [])):
+            events.append({"id": f"demo-{d.isoformat()}-{i}", "subject": subject, "start": _pa_utc(d, s),
+                           "end": _pa_utc(d, e), "isAllDay": False, "location": where, "showAs": show})
+        d += timedelta(days=1)
+    off = monday + timedelta(days=4)
+    events.append({"id": "demo-allday", "subject": "Payroll deadline", "start": f"{off.isoformat()}T00:00:00.0000000",
+                   "end": f"{(off + timedelta(days=1)).isoformat()}T00:00:00.0000000", "isAllDay": True,
+                   "location": "", "showAs": "free"})
+    data = {
+        "exported_at": datetime.combine(today, time(8, 45), dates.LOCAL_TZ).astimezone(timezone.utc).isoformat(),
+        "window": {"start": _pa_utc(first, "00:00") + "Z", "end": _pa_utc(last, "00:00") + "Z"},
+        "events": events,
+    }
+    path.write_text(json.dumps(data, indent=1), encoding="utf-8")
