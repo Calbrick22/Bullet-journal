@@ -143,6 +143,42 @@ def moved_to(conn, entry_id: int) -> Entry | None:
     return Entry.from_row(row) if row else None
 
 
+def copies_of(conn, ids: list[int]) -> dict[int, Entry]:
+    """{original id: the copy it was moved to}, for many entries at once."""
+    if not ids:
+        return {}
+    marks = ",".join("?" * len(ids))
+    rows = conn.execute(f"SELECT * FROM entries WHERE moved_from_id IN ({marks})", ids)
+    return {r["moved_from_id"]: Entry.from_row(r) for r in rows}
+
+
+def entries_by_id(conn, ids: list[int]) -> dict[int, Entry]:
+    if not ids:
+        return {}
+    marks = ",".join("?" * len(ids))
+    rows = conn.execute(f"SELECT * FROM entries WHERE id IN ({marks})", ids)
+    return {r["id"]: Entry.from_row(r) for r in rows}
+
+
+def entries_after(conn, week: str) -> list[Entry]:
+    """Open entries after a week: dated later, or parked in a later week.
+    Sorted by date (a week-only entry sorts on its week's Monday)."""
+    last_day = dates.week_dates(week)[-1].isoformat()
+    rows = conn.execute(
+        """SELECT * FROM entries WHERE state = 'open'
+           AND (entry_date > ? OR (entry_week IS NOT NULL AND entry_week > ?))""",
+        (last_day, week),
+    )
+    out = [Entry.from_row(r) for r in rows]
+    out.sort(key=lambda e: (e.entry_date or dates.week_monday(e.entry_week), e.entry_week is None, e.position, e.id))
+    return out
+
+
+def day_off_reasons(conn) -> dict[date, str]:
+    rows = conn.execute("SELECT date, reason FROM day_overrides WHERE working = 0")
+    return {date.fromisoformat(r["date"]): r["reason"] for r in rows}
+
+
 # --- Writing ----------------------------------------------------------------
 
 def add_entry(conn, kind: str, text: str, on: date | None = None, week: str | None = None) -> Entry:

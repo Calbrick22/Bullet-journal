@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · Journal</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/css/journal.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='7' fill='%231b6e66'/%3E%3Ccircle cx='12' cy='12' r='3.2' fill='%23fff'/%3E%3C/svg%3E">
+</head>
+<body>
+<div class="app">
+  <nav class="sidebar" id="nav" aria-label="Journal">
+    <div class="product">
+      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="var(--accent)"/><circle cx="12" cy="12" r="3.2" fill="#fff"/></svg>
+      <div>
+        <div class="product-name">Journal</div>
+        <div class="product-scope">Europe/London</div>
+      </div>
+      <button class="btn ghost menu-close" type="button" data-menu>Close</button>
+    </div>
+
+    <a class="nav-item" href="/today"{% if nav == "today" %} aria-current="page"{% endif %}>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>
+      Today <span class="nav-meta">{{ today_label }}</span>
+    </a>
+    <a class="nav-item" href="/week/{{ this_week }}"{% if nav == "week" %} aria-current="page"{% endif %}>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M5.8 2.5v11M10.2 2.5v11"/></svg>
+      This week <span class="nav-meta">{{ this_week_number }}</span>
+    </a>
+
+    <div class="group-label">Recent weeks</div>
+    {% for key, label, range in recent_weeks %}
+    <a class="nav-item" href="/week/{{ key }}"{% if nav == "week:" ~ key %} aria-current="page"{% endif %}>{{ label }} <span class="nav-meta">{{ range }}</span></a>
+    {% endfor %}
+
+    <div class="bottom">
+      <div class="sync">Calendar not connected yet</div>
+    </div>
+  </nav>
+
+  <main class="canvas">
+    <header class="phone-bar">
+      <button class="btn ghost menu-toggle" type="button" aria-controls="nav" aria-expanded="false" data-menu>Menu</button>
+      <span class="phone-title">{{ phone_title }}</span>
+    </header>
+    <div class="column" id="content">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+<script src="/static/js/app.js" defer></script>
+</body>
+</html>

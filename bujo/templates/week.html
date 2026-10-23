@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% from "_macros.html" import entry, composer %}
+{% block content %}
+<div class="title-row">
+  <div>
+    <h1 class="greeting">{{ title }}</h1>
+    <p class="sub">{{ facts }}</p>
+  </div>
+  <div class="pager">
+    <a class="btn ghost" href="/week/{{ prev_key }}" rel="prev">‹ {{ prev_label }}</a>
+    {% if not is_current %}<a class="btn ghost" href="/week/{{ this_week }}">This week</a>{% endif %}
+    <a class="btn ghost" href="/week/{{ next_key }}" rel="next">{{ next_label }} ›</a>
+  </div>
+</div>
+{{ composer(targets, default_target, next, "Add a task, note or event") }}
+
+
+<section class="spread" style="--cols: {{ days | length + 1 }}" aria-label="{{ title }}">
+  {% for d in days %}
+  <article class="day{% if d.is_today %} today{% endif %}{% if d.is_past %} past{% endif %}{% if d.off %} off{% endif %}" aria-label="{{ d.label }}{% if d.is_today %}, today{% endif %}">
+    <header>
+      <h2><a href="/day/{{ d.date.isoformat() }}">{{ d.label }}</a></h2>
+      {% if d.is_today %}<span class="today-label">Today</span>
+      {% elif d.off %}<span class="meta">{{ d.off }}</span>
+      {% elif not d.is_past and d.open_tasks %}<span class="meta num">{{ d.open_tasks }} open</span>{% endif %}
+    </header>
+    {% if d.rows %}
+    <ul class="entries">{% for r in d.rows %}{{ entry(r, next) }}{% endfor %}</ul>
+    {% elif not d.off %}
+    <p class="quiet">Nothing yet</p>
+    {% endif %}
+  </article>
+  {% endfor %}
+  <article class="day unplaced" aria-label="This week, no day yet">
+    <header><h2>No day yet</h2>{% if unplaced %}<span class="meta num">{{ unplaced | length }}</span>{% endif %}</header>
+    {% if unplaced %}
+    <ul class="entries">{% for r in unplaced %}{{ entry(r, next) }}{% endfor %}</ul>
+    {% else %}
+    <p class="quiet">Tasks for this week that don't need a day yet</p>
+    {% endif %}
+  </article>
+</section>
+
+<div class="lower">
+  <section class="panel ahead" aria-labelledby="ahead-h">
+    <header><h2 id="ahead-h">Ahead</h2>{% if ahead_more %}<span class="meta">{{ ahead_more }} more</span>{% endif %}</header>
+    {% if ahead %}
+    <ul class="rows">
+      {% for a in ahead %}
+      <li class="row ahead-row">
+        <span class="when num">{{ a.when }}</span>
+        {% if a.off %}<span class="off-what">{{ a.off }}</span><span class="pill">{{ a.days }} day{{ "s" if a.days != 1 }} off</span>
+        {% else %}<ul class="entries inline">{{ entry(a.row, next) }}</ul>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">Nothing planned after this week</p>
+    {% endif %}
+  </section>
+  <section class="panel rolling" aria-labelledby="rolling-h">
+    <header><h2 id="rolling-h">Rolling over</h2>{% if rolling %}<span class="meta">{{ rolling | length }} task{{ "s" if rolling | length != 1 }}</span>{% endif %}</header>
+    {% if rolling %}
+    <ul class="rows">
+      {% for r in rolling %}
+      <li class="row roll-row">
+        <div class="roll-main"><span class="roll-text">{{ r.e.text }}</span>
+          <span class="trail">{{ r.trail | join(" › ") }}</span></div>
+        <span class="pill warn">{{ r.day_count }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">Nothing carried over today</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

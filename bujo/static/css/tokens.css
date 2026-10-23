@@ -21,6 +21,7 @@
   --border: #eaeaea;
   --rule: #ececea;            /* row rules inside a #f9f9f9 panel */
   --control: #d9d9d6;
+  --tick-edge: #8a8a86;       /* tick-box outline: 3.4:1 on white, the non-text minimum is 3:1 */
 
   /* ink */
   --text: #1f201d;
@@ -55,9 +56,8 @@
   /* type: Instrument Sans for everything; Instrument Serif for the greeting only */
   --font: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
   --serif: "Instrument Serif", Georgia, serif;
-  /* signifiers are text. ○ is not in Instrument Sans, so it falls back to a
-     symbol face; the fixed-width slot keeps every column aligned regardless */
-  --sig-font: "Instrument Sans", "Segoe UI Symbol", "DejaVu Sans", sans-serif;
+  /* signifier glyphs (– > <) are text in the text face; tasks are tick boxes, events a drawn star */
+  --sig-font: "Instrument Sans", "Segoe UI", sans-serif;
   --fs-title: 48px;           /* serif greeting; 28px on a phone */
   --fs-section: 14px;
   --fs-body: 14px;

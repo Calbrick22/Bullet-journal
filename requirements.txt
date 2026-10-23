@@ -1,1 +1,5 @@
-tzdata>=2024.1        # IANA timezone data; Windows doesn't ship it
+fastapi>=0.110
+uvicorn>=0.29
+jinja2>=3.1
+python-multipart>=0.0.9   # form posts
+tzdata>=2024.1            # IANA timezone data; Windows doesn't ship it

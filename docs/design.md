@@ -38,13 +38,24 @@ colours or sizes anywhere else.
 
 ## Journal conventions
 
-- **Signifiers are text** (• ○ – × > <) in a fixed 14px slot. Instrument Sans lacks
-  `○`, so it falls back to Segoe UI Symbol on Windows. The slot keeps every column aligned.
-- **Meetings vs tasks** are told apart by shape, not colour alone: a meeting is a filled
-  block that starts with its time and has no signifier; a task is a line led by a signifier.
+Changed at your request in milestone 3: tasks are **tick boxes**, events a **star**,
+notes a **dash**. Every mark sits in the same fixed 16px slot, so text always lines up.
+
+| Entry | Mark | Text |
+|---|---|---|
+| Task, open | empty tick box (click, or Space when focused) | ink |
+| Task, done | ticked box, teal fill, white tick | grey, struck through |
+| Task, cancelled | dashed empty box | grey, struck through, "cancelled" |
+| Task, migrated | `>` | grey, "to Thu" |
+| Task, scheduled | `<` | grey, "to 5 Nov" |
+| Event | outline star (drawn, so it renders the same everywhere) | ink |
+| Note | `–` (en dash, semibold) | ink |
+
+- **Meetings vs tasks** are told apart by shape, not colour alone: a meeting (milestone 5)
+  is a filled block that starts with its time and has no tick box.
 - **States:** today = white card, teal edge, the word "Today". Carried over = amber pill
-  "4th day" plus the trail. Future-scheduled = quiet grey "planned on 9 Oct".
-  Done/migrated = grey text; cancelled = struck through.
+  "4th day", plus the trail (Mon › Tue › Wed › Thu) in the day view and Rolling over.
+  Future-scheduled = quiet grey "planned on 9 Oct".
 
 ## Departures from the sheet
 
@@ -54,6 +65,13 @@ colours or sizes anywhere else.
   48px. It drops to 28px on a phone.
 
 ## Gate log
+
+- Milestone 3 (live app, `--demo` data, today pinned to 2026-10-22): `lint.mjs --app` on
+  templates, CSS and JS: 0 FAIL / 0 WARN. `inspect.mjs --app` at 1440/768/390: week and
+  day each 0 FAIL, 1 WARN (title size, above). Three look-and-fix rounds: day view void
+  and ragged column (fixed with the carry trail and a "Next" panel), phone composer order,
+  tablet side panels. In-browser check (Playwright): tick/untick with Space keeps focus,
+  quick-add keeps the cursor and kind, no full reloads, no console errors.
 
 - Milestone 2 (`bujo/static/mock/week.html`): `lint.mjs --app` 0 FAIL / 0 WARN;
   `inspect.mjs --app` at 1440/768/390: 0 FAIL, 1 WARN (above). Three look-and-fix rounds.

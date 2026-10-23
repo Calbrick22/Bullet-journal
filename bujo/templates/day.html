@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "_macros.html" import entry, composer %}
+{% block content %}
+<div class="title-row">
+  <div>
+    <h1 class="greeting">{{ title }}</h1>
+    <p class="sub">{{ facts }}</p>
+  </div>
+  <div class="pager">
+    <a class="btn ghost" href="/day/{{ prev_day.isoformat() }}" rel="prev">‹ {{ prev_label }}</a>
+    {% if not is_today %}<a class="btn ghost" href="/today">Today</a>{% endif %}
+    <a class="btn ghost" href="/week/{{ week_key }}">{{ week_label }}</a>
+    <a class="btn ghost" href="/day/{{ next_day.isoformat() }}" rel="next">{{ next_label }} ›</a>
+  </div>
+</div>
+{{ composer(targets, default_target, next, "Add to " ~ phone_title) }}
+
+
+<div class="day-grid">
+  <section class="day-sheet{% if is_today %} today{% endif %}" aria-label="{{ title }}">
+    {% if rows %}
+    <ul class="entries">{% for r in rows %}{{ entry(r, next, actions=true, trail=true) }}{% endfor %}</ul>
+    {% else %}
+    <p class="empty">Nothing on this day yet</p>
+    {% endif %}
+  </section>
+
+  <div class="day-side">
+    <section class="panel" aria-labelledby="meetings-h">
+      <header><h2 id="meetings-h">Meetings</h2></header>
+      <p class="quiet">Outlook meetings appear here once calendar sync is set up.</p>
+    </section>
+    <section class="panel" aria-labelledby="coming-h">
+      <header><h2 id="coming-h">Next: <a href="/day/{{ next_day.isoformat() }}">{{ next_label }}</a></h2>{% if coming_more %}<span class="meta">{{ coming_more }} more</span>{% endif %}</header>
+      {% if coming %}
+      <ul class="entries">{% for r in coming %}{{ entry(r, next) }}{% endfor %}</ul>
+      {% else %}
+      <p class="quiet">Nothing planned yet</p>
+      {% endif %}
+    </section>
+    <section class="panel unplaced" aria-labelledby="unplaced-h">
+      <header><h2 id="unplaced-h">{{ week_label }}, no day yet</h2>{% if unplaced %}<span class="meta num">{{ unplaced | length }}</span>{% endif %}</header>
+      {% if unplaced %}
+      <ul class="entries">{% for r in unplaced %}{{ entry(r, next) }}{% endfor %}</ul>
+      {% else %}
+      <p class="quiet">Nothing waiting for a day</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}
