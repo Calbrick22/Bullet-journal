@@ -283,3 +283,96 @@ def test_future_log(env):
     assert html.index("November 2026") < html.index("Dentist") < html.index("Headcount plan") < html.index("December 2026")
     assert "Christmas Day" in html and "Weeks ahead" in html
     assert client.post("/entries", data={"kind": "task", "text": "x"}).status_code == 400   # no day or week
+
+
+# --- Backlog, ongoing, categories, settings -----------------------------------
+
+def test_healthz(env):
+    client, _, _ = env
+    assert client.get("/healthz").text == "bullet-journal"
+
+
+def test_backlog_and_ongoing_from_any_add_box(env):
+    client, _, path = env
+    client.post("/entries", data={"kind": "task", "text": "Tidy the wiki", "target": "l:backlog"})
+    client.post("/entries", data={"kind": "task", "text": "Budget model", "target": "l:ongoing"})
+    html = client.get("/backlog").text
+    assert "1 ongoing · 1 in the backlog" in html and ">Start<" in html
+    assert "Budget model" in client.get("/day/2026-10-22").text            # ongoing shows on the day
+    assert client.post("/entries", data={"kind": "note", "text": "n", "target": "l:backlog"}).status_code == 400
+    assert client.post("/entries", data={"kind": "task", "text": "x", "target": "l:someday"}).status_code == 400
+
+
+def test_start_from_backlog_each_way(env):
+    client, _, path = env
+    for t in ("To ongoing", "To today", "To a date"):
+        client.post("/entries", data={"kind": "task", "text": t, "target": "l:backlog"})
+    with db(path) as conn:
+        a, b, c = j.entries_in_list(conn, "backlog")
+    client.post(f"/entries/{a.id}/move", data={"to": "ongoing"})
+    client.post(f"/entries/{b.id}/move", data={"to": "today"})
+    client.post(f"/entries/{c.id}/move", data={"to": "date", "on": "2026-11-02"})
+    with db(path) as conn:
+        assert [e.text for e in j.entries_in_list(conn, "ongoing")] == ["To ongoing"]
+        assert j.entries_in_list(conn, "backlog") == []
+    assert [e.text for e in only(path, "2026-10-22")] == ["To today"]
+    assert [e.text for e in only(path, "2026-11-02")] == ["To a date"]
+
+
+def test_tag_meeting_by_name_and_only_this(with_meetings):
+    client, path = with_meetings
+    client.get("/week/2026-W43")   # sync the calendar
+    client.post("/settings/categories", data={"name": "Atlas", "colour": "mint"})
+    client.post("/settings/categories", data={"name": "Internal", "colour": "lime"})
+    with db(path) as conn:
+        from bujo import categories as cats
+        atlas, internal = cats.all_categories(conn)
+    client.post("/meetings/m1/category", data={"category": str(atlas.id)})
+    html = client.get("/week/2026-W43").text
+    assert 'cat cat-mint' in html and 'data-meeting="m1"' in html
+    client.post("/meetings/m1/category", data={"category": str(internal.id), "only_this": "1"})
+    assert 'cat cat-lime' in client.get("/day/2026-10-22").text
+    client.post("/meetings/m1/category", data={"category": ""})
+    assert 'cat cat-' not in client.get("/day/2026-10-22").text.split("<dialog")[0]
+    assert client.post("/meetings/nope/category", data={"category": str(atlas.id)}).status_code == 400
+
+
+def test_manage_categories(env):
+    client, _, path = env
+    client.post("/settings/categories", data={"name": "Atlas", "colour": "mint"})
+    assert client.post("/settings/categories", data={"name": "atlas", "colour": "sky"}).status_code == 400
+    with db(path) as conn:
+        from bujo import categories as cats
+        [c] = cats.all_categories(conn)
+    client.post(f"/settings/categories/{c.id}", data={"name": "Atlas project", "colour": "rose"})
+    client.post(f"/settings/categories/{c.id}/archive", data={})
+    html = client.get("/settings").text
+    assert "Archived" in html and "Atlas project" in html and "Restore" in html
+    client.post(f"/settings/categories/{c.id}/restore", data={})
+    assert "Archived" not in client.get("/settings").text
+
+
+def test_working_days_and_leave_from_settings(env):
+    client, _, path = env
+    client.post("/settings/weekdays", data={"weekday": ["0", "1", "2", "3"]})
+    with db(path) as conn:
+        assert j.load_calendar(conn).working_weekdays == {0, 1, 2, 3}
+    assert client.post("/settings/weekdays", data={}).status_code == 400   # at least one day
+    client.post("/settings/leave", data={"start": "2026-11-09", "end": "2026-11-13", "reason": "Annual leave"})
+    html = client.get("/settings").text
+    assert "9–12 Nov" in html and "4 days" in html          # Fri isn't a working day any more
+    client.post("/settings/leave/remove", data={"start": "2026-11-09", "end": "2026-11-12"})
+    assert "No days off booked" in client.get("/settings").text
+    assert client.post("/settings/leave", data={"start": "2026-11-13", "end": "2026-11-09"}).status_code == 400
+
+
+def test_backup_now(env):
+    client, _, path = env
+    client.post("/settings/backup", data={})
+    assert "journal-" in client.get("/settings").text
+
+
+def test_startup_toggle_off_windows(env):
+    client, _, _ = env
+    assert "Available when the journal runs on Windows" in client.get("/settings").text
+    assert client.post("/settings/startup", data={"on": "1"}).status_code == 400

@@ -270,3 +270,80 @@ def test_edit_text(conn):
     j.move_forward(conn, t.id, today=d("2026-10-22"))
     with pytest.raises(j.JournalError):
         j.edit_text(conn, t.id, "Rewrite history")
+
+
+# --- Backlog and ongoing lists ------------------------------------------------
+
+def test_add_to_lists_tasks_only(conn):
+    b = j.add_entry(conn, "task", "Tidy the wiki", lst="backlog")
+    o = j.add_entry(conn, "task", "Q4 budget model", lst="ongoing")
+    assert (b.entry_list, b.entry_date, b.entry_week) == ("backlog", None, None)
+    assert [e.text for e in j.entries_in_list(conn, "ongoing")] == ["Q4 budget model"]
+    assert j.count_in_list(conn, "backlog") == 1
+    with pytest.raises(j.JournalError):
+        j.add_entry(conn, "note", "Notes don't go on lists", lst="backlog")
+    with pytest.raises(j.JournalError):
+        j.add_entry(conn, "task", "x", lst="someday")
+    with pytest.raises(j.JournalError):
+        j.add_entry(conn, "task", "x", on=d("2026-10-22"), lst="backlog")
+
+
+def test_lists_never_carry_over(conn):
+    j.add_entry(conn, "task", "Backlog item", lst="backlog")
+    j.add_entry(conn, "task", "Ongoing item", lst="ongoing")
+    assert j.carry_over(conn, today=d("2026-10-22")) == []
+    assert j.entries_after(conn, "2026-W43") == []
+
+
+def test_pull_from_backlog_moves_in_place(conn):
+    b = j.add_entry(conn, "task", "Tidy the wiki", lst="backlog")
+    o = j.move_task(conn, b.id, lst="ongoing", today=d("2026-10-22"))
+    assert o.id == b.id and o.entry_list == "ongoing"
+    t = j.move_task(conn, b.id, on=d("2026-10-22"), today=d("2026-10-22"))
+    assert t.id == b.id and t.entry_date == d("2026-10-22") and t.entry_list is None
+    assert conn.execute("SELECT COUNT(*) FROM entries").fetchone()[0] == 1
+
+
+def test_day_task_to_backlog_leaves_a_migrated_original(conn):
+    t = j.add_entry(conn, "task", "Not this week", on=d("2026-10-22"))
+    copy = j.move_task(conn, t.id, lst="backlog", today=d("2026-10-22"))
+    assert copy.entry_list == "backlog" and copy.moved_from_id == t.id
+    assert j.get_entry(conn, t.id).state == "migrated"
+
+
+def test_forward_from_a_list_goes_to_the_current_working_day(conn):
+    o = j.add_entry(conn, "task", "Ongoing", lst="ongoing")
+    assert j.move_forward(conn, o.id, today=d("2026-10-24")).entry_date == d("2026-10-23")  # Sat -> Fri
+
+
+def test_done_ongoing_tasks_stay_visible_for_a_while(conn):
+    from datetime import datetime, timezone
+    o = j.add_entry(conn, "task", "Finish me", lst="ongoing")
+    j.mark_done(conn, o.id)
+    assert j.entries_in_list(conn, "ongoing") == []
+    assert len(j.entries_in_list(conn, "ongoing", done_since=datetime(2000, 1, 1, tzinfo=timezone.utc))) == 1
+
+
+def test_upgrade_keeps_entries_and_links(tmp_path):
+    """A journal made before lists existed upgrades without losing anything."""
+    import sqlite3
+    from bujo import db
+    path = tmp_path / "old.sqlite"
+    raw = sqlite3.connect(path, isolation_level=None)
+    for sql in db.MIGRATIONS[:2]:
+        raw.executescript(sql)
+    raw.execute("PRAGMA user_version = 2")
+    raw.execute("INSERT INTO entries (id, kind, text, state, entry_date, created_at, updated_at) "
+                "VALUES (1, 'task', 'Old', 'migrated', '2026-10-21', '2026-10-21T09:00:00+00:00', '2026-10-21T09:00:00+00:00')")
+    raw.execute("INSERT INTO entries (id, kind, text, state, entry_date, moved_from_id, origin_id, carry_count, "
+                "created_at, updated_at) VALUES (2, 'task', 'Old', 'open', '2026-10-22', 1, 1, 1, '2026-10-21T09:00:00+00:00', '2026-10-21T09:00:00+00:00')")
+    raw.execute("INSERT INTO entries (id, kind, text, entry_week, created_at, updated_at) "
+                "VALUES (3, 'note', 'Week note', '2026-W43', '2026-10-21T09:00:00+00:00', '2026-10-21T09:00:00+00:00')")
+    raw.close()
+    c = connect(path)
+    assert c.execute("PRAGMA user_version").fetchone()[0] == len(db.MIGRATIONS)
+    assert [e.text for e in j.history(c, 2)] == ["Old", "Old"]
+    assert j.moved_to(c, 1).id == 2
+    assert j.entries_for_week(c, "2026-W43")[1][0].text == "Week note"
+    assert c.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+    c.close()

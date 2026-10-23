@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_macros.html" import entry, composer %}
+{% block content %}
+<div class="title-row">
+  <div>
+    <h1 class="greeting">{{ title }}</h1>
+    <p class="sub">{{ facts }}</p>
+  </div>
+</div>
+{{ composer(targets, default_target, next, "Something you'll need to do") }}
+
+<div class="backlog-grid">
+  <section class="panel backlog" aria-labelledby="backlog-h">
+    <header><h2 id="backlog-h">Backlog</h2><span class="meta">{{ backlog | length }} waiting</span></header>
+    {% if backlog %}
+    <ul class="entries list-rows">{% for r in backlog %}{{ entry(r, next, actions=true) }}{% endfor %}</ul>
+    {% else %}
+    <p class="empty">Nothing waiting. Add things you'll need to do but aren't ready to start.</p>
+    {% endif %}
+  </section>
+
+  <div class="backlog-side">
+    <section class="panel ongoing" aria-labelledby="ongoing-h">
+      <header><h2 id="ongoing-h">Ongoing</h2><span class="meta">{{ ongoing | length }} in progress</span></header>
+      {% if ongoing %}
+      <ul class="entries list-rows">{% for r in ongoing %}{{ entry(r, next, actions=true) }}{% endfor %}</ul>
+      {% else %}
+      <p class="quiet">Nothing in progress. Press Start on a backlog task to begin it.</p>
+      {% endif %}
+    </section>
+    <section class="panel finished" aria-labelledby="finished-h">
+      <header><h2 id="finished-h">Finished recently</h2><span class="meta">last 2 weeks</span></header>
+      {% if finished %}
+      <ul class="entries">{% for r in finished %}{{ entry(r, next) }}{% endfor %}</ul>
+      {% else %}
+      <p class="quiet">Ticked-off backlog and ongoing tasks show here for two weeks.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

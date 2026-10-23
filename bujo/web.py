@@ -14,11 +14,11 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import calendar as calmod, dates, journal as j, views
+from . import backup, calendar as calmod, categories as catmod, dates, journal as j, startup, views
 from .db import connect
 
 HERE = Path(__file__).parent
@@ -46,7 +46,11 @@ def create_app(db_path: Path, today: Callable[[], date] = dates.local_today,
         t = today()
         cal_week = dates.week_key(t)
         recent = [dates.shift_week(cal_week, -i) for i in (1, 2)]
+        with db() as conn:
+            picker = catmod.all_categories(conn, include_archived=False)
+            n_backlog = j.count_in_list(conn, "backlog")
         return templates.TemplateResponse(request, name, {
+            "picker": picker, "n_backlog": n_backlog,
             **ctx, "nav": nav, "today": t, "today_label": views.short_day(t),
             "this_week": cal_week, "this_week_number": dates.parse_week_key(cal_week)[1],
             "recent_weeks": [(k, views.week_label(k), views.week_range(k)) for k in recent],
@@ -104,6 +108,24 @@ def create_app(db_path: Path, today: Callable[[], date] = dates.local_today,
             ctx = views.day_view(conn, d, today(), now())
         return page(request, "day.html", ctx, "today" if d == today() else "day", status)
 
+    @app.get("/healthz", response_class=PlainTextResponse)
+    def healthz():
+        return "bullet-journal"   # run.py checks this before starting a second copy
+
+    @app.get("/backlog", response_class=HTMLResponse)
+    def backlog_page(request: Request):
+        with db() as conn:
+            status = refresh(conn)
+            ctx = views.backlog_view(conn, today(), now())
+        return page(request, "backlog.html", ctx, "backlog", status)
+
+    @app.get("/settings", response_class=HTMLResponse)
+    def settings_page(request: Request):
+        with db() as conn:
+            status = refresh(conn)
+            ctx = views.settings_view(conn, today(), db_path)
+        return page(request, "settings.html", ctx, "settings", status)
+
     @app.get("/future", response_class=HTMLResponse)
     def future(request: Request):
         with db() as conn:
@@ -117,7 +139,7 @@ def create_app(db_path: Path, today: Callable[[], date] = dates.local_today,
         with db() as conn:
             try:
                 fn(conn, *args)
-            except j.JournalError as e:
+            except (j.JournalError, catmod.CategoryError) as e:
                 raise HTTPException(400, str(e))
         return back(next_url)
 
@@ -132,6 +154,8 @@ def create_app(db_path: Path, today: Callable[[], date] = dates.local_today,
                 if kind == "w":
                     dates.parse_week_key(value)
                     return {"week": value}
+                if kind == "l" and value in j.LISTS:
+                    return {"lst": value}
                 raise ValueError
             if on:
                 return {"on": date.fromisoformat(on)}
@@ -174,6 +198,10 @@ def create_app(db_path: Path, today: Callable[[], date] = dates.local_today,
             return forward(entry_id, next)
         if to == "next-week":
             loc = {"week": dates.shift_week(dates.week_key(today()), 1)}
+        elif to == "today":
+            loc = {"on": today()}
+        elif to in j.LISTS:
+            loc = {"lst": to}
         elif to == "date":
             loc = location(on=on)
         elif to == "week":
@@ -185,5 +213,74 @@ def create_app(db_path: Path, today: Callable[[], date] = dates.local_today,
     @app.post("/entries/{entry_id}/edit")
     def edit(entry_id: int, text: str = Form(...), next: str = Form("/")):
         return act(j.edit_text, entry_id, text, next_url=next)
+
+    # --- Meeting categories ---------------------------------------------------
+
+    @app.post("/meetings/{meeting_id}/category")
+    def tag_meeting(meeting_id: str, category: str = Form(""), only_this: str = Form(""), next: str = Form("/")):
+        def run(conn):
+            m = calmod.get_meeting(conn, meeting_id)
+            if m is None:
+                raise catmod.CategoryError("That meeting isn't in your calendar any more")
+            catmod.tag(conn, m, int(category) if category.isdigit() else None, only_this=bool(only_this))
+        return act(run, next_url=next)
+
+    # --- Settings ---------------------------------------------------------------
+
+    @app.post("/settings/categories")
+    def add_category(name: str = Form(...), colour: str = Form(...), next: str = Form("/settings")):
+        return act(lambda conn: catmod.add(conn, name, colour), next_url=next)
+
+    @app.post("/settings/categories/{cid}")
+    def edit_category(cid: int, name: str = Form(...), colour: str = Form(...), next: str = Form("/settings")):
+        return act(lambda conn: catmod.update(conn, cid, name, colour), next_url=next)
+
+    @app.post("/settings/categories/{cid}/archive")
+    def archive_category(cid: int, next: str = Form("/settings")):
+        return act(lambda conn: catmod.set_archived(conn, cid, True), next_url=next)
+
+    @app.post("/settings/categories/{cid}/restore")
+    def restore_category(cid: int, next: str = Form("/settings")):
+        return act(lambda conn: catmod.set_archived(conn, cid, False), next_url=next)
+
+    @app.post("/settings/weekdays")
+    async def set_weekdays(request: Request):
+        form = await request.form()
+        try:
+            days = {int(v) for v in form.getlist("weekday")}
+        except ValueError:
+            raise HTTPException(400, "Bad weekday")
+        return act(lambda conn: j.set_working_weekdays(conn, days), next_url=str(form.get("next", "/settings")))
+
+    def two_dates(start: str, end: str) -> tuple[date, date]:
+        try:
+            a = date.fromisoformat(start)
+            return a, date.fromisoformat(end) if end else a
+        except ValueError:
+            raise HTTPException(400, "Pick the first and last day")
+
+    @app.post("/settings/leave")
+    def add_leave(start: str = Form(...), end: str = Form(""), reason: str = Form("Annual leave"),
+                  next: str = Form("/settings")):
+        a, b = two_dates(start, end)
+        return act(lambda conn: j.add_leave(conn, a, b, reason), next_url=next)
+
+    @app.post("/settings/leave/remove")
+    def remove_leave(start: str = Form(...), end: str = Form(""), next: str = Form("/settings")):
+        a, b = two_dates(start, end)
+        return act(lambda conn: j.remove_leave(conn, a, b), next_url=next)
+
+    @app.post("/settings/startup")
+    def set_startup(on: str = Form(""), next: str = Form("/settings")):
+        try:
+            startup.enable() if on else startup.disable()
+        except OSError as e:
+            raise HTTPException(400, str(e))
+        return back(next)
+
+    @app.post("/settings/backup")
+    def back_up_now(next: str = Form("/settings")):
+        backup.back_up(db_path)
+        return back(next)
 
     return app

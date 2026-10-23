@@ -6,7 +6,7 @@ Date decisions come from `dates`; this module only reads and writes SQLite.
 import json
 import sqlite3
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from . import dates
 from .db import transaction
@@ -31,6 +31,7 @@ class Entry:
     state: str
     entry_date: date | None
     entry_week: str | None
+    entry_list: str | None          # "backlog" or "ongoing": no day or week
     position: int
     moved_from_id: int | None
     origin_id: int | None
@@ -57,6 +58,7 @@ class Entry:
             state=row["state"],
             entry_date=date.fromisoformat(row["entry_date"]) if row["entry_date"] else None,
             entry_week=row["entry_week"],
+            entry_list=row["entry_list"],
             position=row["position"],
             moved_from_id=row["moved_from_id"],
             origin_id=row["origin_id"],
@@ -75,16 +77,21 @@ def _now() -> str:
     return dates.utc_now().isoformat(timespec="seconds")
 
 
-def _location(on: date | None, week: str | None) -> tuple[str | None, str | None]:
-    if (on is None) == (week is None):
-        raise JournalError("Give exactly one of a date or a week")
+LISTS = ("backlog", "ongoing")
+
+
+def _location(on: date | None, week: str | None, lst: str | None = None) -> tuple[str | None, str | None, str | None]:
+    if (on is not None) + (week is not None) + (lst is not None) != 1:
+        raise JournalError("Give exactly one of a date, a week or a list")
     if week is not None:
         dates.parse_week_key(week)
-    return (on.isoformat() if on else None), week
+    if lst is not None and lst not in LISTS:
+        raise JournalError(f"Unknown list {lst!r}")
+    return (on.isoformat() if on else None), week, lst
 
 
-def _next_position(conn, on: str | None, week: str | None) -> int:
-    col, val = ("entry_date", on) if on else ("entry_week", week)
+def _next_position(conn, on: str | None, week: str | None, lst: str | None = None) -> int:
+    col, val = ("entry_date", on) if on else ("entry_week", week) if week else ("entry_list", lst)
     row = conn.execute(
         f"SELECT COALESCE(MAX(position), -1) + 1 FROM entries WHERE {col} = ?", (val,)
     ).fetchone()
@@ -125,6 +132,32 @@ def entries_for_week(conn, week: str) -> tuple[dict[date, list[Entry]], list[Ent
         )
     ]
     return by_day, unassigned
+
+
+def entries_in_list(conn, lst: str, done_since: datetime | None = None) -> list[Entry]:
+    """Open entries on a list, plus any finished since `done_since` (so a
+    ticked task stays visible for a while instead of vanishing)."""
+    rows = conn.execute(
+        """SELECT * FROM entries WHERE entry_list = ?
+           AND (state = 'open' OR (state = 'done' AND completed_at >= ?))
+           ORDER BY position, id""",
+        (lst, done_since.isoformat(timespec="seconds") if done_since else "9999"),
+    )
+    return [Entry.from_row(r) for r in rows]
+
+
+def finished_from_lists(conn, since: datetime, limit: int = 8) -> list[Entry]:
+    """Backlog and ongoing tasks ticked off since a time, newest first."""
+    rows = conn.execute(
+        """SELECT * FROM entries WHERE entry_list IS NOT NULL AND state = 'done' AND completed_at >= ?
+           ORDER BY completed_at DESC LIMIT ?""",
+        (since.isoformat(timespec="seconds"), limit),
+    )
+    return [Entry.from_row(r) for r in rows]
+
+
+def count_in_list(conn, lst: str) -> int:
+    return conn.execute("SELECT COUNT(*) FROM entries WHERE entry_list = ? AND state = 'open'", (lst,)).fetchone()[0]
 
 
 def history(conn, entry_id: int) -> list[Entry]:
@@ -181,19 +214,22 @@ def day_off_reasons(conn) -> dict[date, str]:
 
 # --- Writing ----------------------------------------------------------------
 
-def add_entry(conn, kind: str, text: str, on: date | None = None, week: str | None = None) -> Entry:
+def add_entry(conn, kind: str, text: str, on: date | None = None, week: str | None = None,
+              lst: str | None = None) -> Entry:
     if kind not in KINDS:
         raise JournalError(f"Unknown kind {kind!r}")
     text = text.strip()
     if not text:
         raise JournalError("Entry text is empty")
-    on_s, week_s = _location(on, week)
+    on_s, week_s, lst = _location(on, week, lst)
+    if lst and kind != "task":
+        raise JournalError("Only tasks go on the backlog or ongoing list")
     now = _now()
     with transaction(conn):
         cur = conn.execute(
-            """INSERT INTO entries (kind, text, entry_date, entry_week, position, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (kind, text, on_s, week_s, _next_position(conn, on_s, week_s), now, now),
+            """INSERT INTO entries (kind, text, entry_date, entry_week, entry_list, position, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (kind, text, on_s, week_s, lst, _next_position(conn, on_s, week_s, lst), now, now),
         )
     return get_entry(conn, cur.lastrowid)
 
@@ -238,16 +274,17 @@ def reopen(conn, entry_id: int) -> Entry:
     return _set_state(conn, entry_id, "open", ("done", "cancelled"))
 
 
-def _move(conn, e: Entry, state: str, on_s: str | None, week_s: str | None, now: str) -> int:
+def _move(conn, e: Entry, state: str, on_s: str | None, week_s: str | None, now: str,
+          lst: str | None = None) -> int:
     conn.execute(
         "UPDATE entries SET state = ?, updated_at = ? WHERE id = ?", (state, now, e.id)
     )
     cur = conn.execute(
-        """INSERT INTO entries (kind, text, entry_date, entry_week, position,
+        """INSERT INTO entries (kind, text, entry_date, entry_week, entry_list, position,
                                 moved_from_id, origin_id, carry_count, created_at, updated_at)
-           VALUES ('task', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES ('task', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            e.text, on_s, week_s, _next_position(conn, on_s, week_s),
+            e.text, on_s, week_s, lst, _next_position(conn, on_s, week_s, lst),
             e.id, e.origin_id or e.id,
             e.carry_count + (1 if state == "migrated" else 0),
             now, now,
@@ -257,19 +294,33 @@ def _move(conn, e: Entry, state: str, on_s: str | None, week_s: str | None, now:
 
 
 def move_task(conn, entry_id: int, on: date | None = None, week: str | None = None,
-              today: date | None = None, mark: str | None = None) -> Entry:
+              today: date | None = None, mark: str | None = None, lst: str | None = None) -> Entry:
     """Move an open task elsewhere, keeping history.
 
     Moving to a later date or week than today's marks the original
     scheduled (<); anything else is a migration (>). `mark` forces one
     ("migrated" for `>`). Returns the new copy.
+
+    The backlog and ongoing lists aren't a log, so a task leaving one of
+    them is simply relocated (same entry, no copy). A task moving from a day
+    or week onto a list leaves a migrated (>) original behind as usual.
     """
     e = get_entry(conn, entry_id)
     if e.kind != "task" or e.state != "open":
         raise JournalError("Only open tasks can be moved")
-    on_s, week_s = _location(on, week)
-    if (on_s, week_s) == (e.entry_date and e.entry_date.isoformat(), e.entry_week):
+    on_s, week_s, lst = _location(on, week, lst)
+    if (on_s, week_s, lst) == (e.entry_date and e.entry_date.isoformat(), e.entry_week, e.entry_list):
         raise JournalError("Task is already there")
+    if e.entry_list:
+        conn.execute(
+            "UPDATE entries SET entry_date = ?, entry_week = ?, entry_list = ?, position = ?, updated_at = ? WHERE id = ?",
+            (on_s, week_s, lst, _next_position(conn, on_s, week_s, lst), _now(), e.id),
+        )
+        return get_entry(conn, e.id)
+    if lst:
+        with transaction(conn):
+            new_id = _move(conn, e, "migrated", None, None, _now(), lst)
+        return get_entry(conn, new_id)
     if e.entry_week and on and dates.week_key(on) == e.entry_week:
         # Giving a week-only task a day in its own week just places it.
         conn.execute(
@@ -293,9 +344,11 @@ def forward_target(e: Entry, today: date, cal: dates.WorkCalendar) -> tuple[date
     working day after its date, or to the current working day if it's
     already in the past.
     """
+    current = dates.carry_over_target(today, cal)
+    if e.entry_list:
+        return current, None
     if e.entry_week:
         return None, dates.shift_week(e.entry_week, 1)
-    current = dates.carry_over_target(today, cal)
     if e.entry_date < current:
         return current, None
     return cal.next_working_day(e.entry_date), None
@@ -370,3 +423,32 @@ def set_day_override(conn, d: date, working: bool, reason: str = "") -> None:
 
 def clear_day_override(conn, d: date) -> None:
     conn.execute("DELETE FROM day_overrides WHERE date = ?", (d.isoformat(),))
+
+
+def add_leave(conn, start: date, end: date, reason: str = "Annual leave") -> int:
+    """Mark a run of days off. Only usual working days are recorded (a week of
+    leave doesn't need its weekend). Returns how many days were added."""
+    if end < start:
+        raise JournalError("The last day is before the first")
+    if (end - start).days > 366:
+        raise JournalError("That's more than a year of leave")
+    reason = " ".join(reason.split()) or "Day off"
+    weekdays = load_calendar(conn).working_weekdays
+    n = 0
+    with transaction(conn):
+        d = start
+        while d <= end:
+            if d.weekday() in weekdays:
+                conn.execute(
+                    "INSERT INTO day_overrides (date, working, reason) VALUES (?, 0, ?) "
+                    "ON CONFLICT (date) DO UPDATE SET working = 0, reason = excluded.reason",
+                    (d.isoformat(), reason),
+                )
+                n += 1
+            d += timedelta(days=1)
+    return n
+
+
+def remove_leave(conn, start: date, end: date) -> None:
+    conn.execute("DELETE FROM day_overrides WHERE working = 0 AND date BETWEEN ? AND ?",
+                 (start.isoformat(), end.isoformat()))

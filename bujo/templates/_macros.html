@@ -4,7 +4,8 @@
 {% macro entry(r, next, actions=false, trail=false) -%}
 {%- set e = r.e -%}
 <li class="entry {{ e.kind }} {{ e.state }}{% if r.carried %} carried{% endif %}" id="e{{ e.id }}" tabindex="-1"
-    data-id="{{ e.id }}" data-kind="{{ e.kind }}" data-state="{{ e.state }}" data-text="{{ e.text }}" data-forward="{{ r.forward }}">
+    data-id="{{ e.id }}" data-kind="{{ e.kind }}" data-state="{{ e.state }}" data-text="{{ e.text }}" data-forward="{{ r.forward }}"
+    data-where="{{ e.entry_list or ('week' if e.entry_week else 'day') }}" data-date="{{ e.entry_date.isoformat() if e.entry_date else '' }}">
   {%- if e.kind == "task" and e.state in ("open", "done") %}
   <form method="post" action="/entries/{{ e.id }}/{{ 'reopen' if e.state == 'done' else 'done' }}" data-inline>
     <input type="hidden" name="next" value="{{ next }}">
@@ -29,7 +30,7 @@
   {%- if actions and e.state not in ("migrated", "scheduled") %}
   <span class="acts">
     {%- if e.kind == "task" and e.state == "open" %}
-    <button class="card-link plain" type="button" data-act="move" title="Move or reschedule (m)">Move</button>
+    <button class="card-link plain" type="button" data-act="move" title="Move or reschedule (m)">{{ "Start" if e.entry_list == "backlog" else "Move" }}</button>
     {%- endif %}
     <button class="card-link plain" type="button" data-act="edit" title="Edit (e)">Edit</button>
     {%- if e.kind == "task" and e.state in ("open", "cancelled") %}
@@ -47,13 +48,23 @@
 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.9l1.8 3.9 4.2.5-3.1 2.9.8 4.2L8 11.3l-3.7 2.1.8-4.2L2 6.3l4.2-.5z"/></svg>
 {%- endmacro %}
 
-{#- A meeting from Outlook: read-only, time-led, no tick box.
-    busy = filled; tentative = dashed edge; free / elsewhere = outline only; out of office = darker. -#}
+{#- A meeting from Outlook: read-only, time-led, no tick box. Click (or Enter) to set its category.
+    busy = filled; tentative = dashed edge; free / elsewhere = outline only; out of office = darker.
+    A category replaces the neutral fill with its pastel. -#}
+{% macro meeting_attrs(mr) -%}
+tabindex="0" role="button" data-meeting="{{ mr.m.id }}" data-subject="{{ mr.m.subject }}" data-cat="{{ mr.category.id if mr.category else '' }}"
+aria-label="{{ mr.time }}, {{ mr.m.subject }}{% if mr.category %}, {{ mr.category.name }}{% else %}, no category{% endif %}. Set category"
+{%- endmacro %}
+
+{% macro meeting_class(mr) -%}
+meeting {{ mr.kind }}{% if mr.m.all_day %} all-day{% endif %}{% if mr.past %} past{% endif %}{% if mr.category %} cat cat-{{ mr.category.colour }}{% endif %}
+{%- endmacro %}
+
 {% macro meeting(mr, roomy=false) -%}
-<li class="meeting {{ mr.kind }}{% if mr.m.all_day %} all-day{% endif %}{% if mr.past %} past{% endif %}">
+<li class="{{ meeting_class(mr) }}" {{ meeting_attrs(mr) }} title="{{ mr.category.name if mr.category else 'No category' }}: click to change">
   <span class="time num">{{ mr.time }}</span>
   <span class="subject">{{ mr.m.subject }}</span>
-  {%- if roomy and mr.m.location %}<span class="where">{{ mr.m.location }}</span>{% endif %}
+  {%- if roomy and (mr.m.location or mr.category) %}<span class="where">{{ mr.m.location }}{% if mr.m.location and mr.category %} · {% endif %}{% if mr.category %}<span class="cat-name">{{ mr.category.name }}</span>{% endif %}</span>{% endif %}
   {%- if mr.kind == "tentative" %}<span class="visually-hidden">(tentative)</span>{% elif mr.kind == "free" %}<span class="visually-hidden">(shown as free)</span>{% endif %}
 </li>
 {%- endmacro %}

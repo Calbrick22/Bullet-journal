@@ -201,6 +201,11 @@ def meetings_between(conn, start: datetime, end: datetime, include_cancelled: bo
     return [m for m in map(_row, rows) if include_cancelled or not m.cancelled]
 
 
+def get_meeting(conn, meeting_id: str) -> Meeting | None:
+    r = conn.execute("SELECT * FROM meetings WHERE id = ?", (meeting_id,)).fetchone()
+    return _row(r) if r else None
+
+
 def meetings_on(conn, d: date) -> list[Meeting]:
     start, end = dates.day_bounds_utc(d)
     return meetings_between(conn, start, end)

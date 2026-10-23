@@ -6,15 +6,25 @@
 """
 
 import argparse
+import sys
 import threading
+import urllib.request
 import webbrowser
 from datetime import datetime, time, timezone
 
 import uvicorn
 
-from bujo import calendar, config, dates, demo
+from bujo import backup, calendar, config, dates, demo
 from bujo.db import connect
 from bujo.web import create_app
+
+
+def already_running(url: str) -> bool:
+    try:
+        with urllib.request.urlopen(url + "healthz", timeout=1) as r:
+            return r.read() == b"bullet-journal"
+    except OSError:
+        return False
 
 
 def main() -> None:
@@ -44,6 +54,19 @@ def main() -> None:
     source = calendar.PowerAutomateJson(calendar_path) if calendar_path else None
 
     url = f"http://127.0.0.1:{port}/"
+    if already_running(url):
+        # Started at login and then double-clicked: just open the one that's running.
+        print(f"The journal is already running: {url}")
+        if not args.no_browser:
+            webbrowser.open(url)
+        return
+    if sys.stdout is None:
+        # Started without a console (pythonw, at login): keep messages in a log file.
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        log = open(db_path.parent / "journal.log", "a", encoding="utf-8", buffering=1)
+        sys.stdout = sys.stderr = log
+    if not args.demo:
+        backup.daily(db_path)
     print(f"Journal: {url}  ({db_path})  Ctrl+C to stop")
     if not args.no_browser:
         threading.Timer(1.0, webbrowser.open, args=(url,)).start()

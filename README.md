@@ -44,7 +44,20 @@ Tests: `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`, then
 `n` add (start with `*` for an event, `-` for a note) · `j`/`k` next/previous entry ·
 `x` or Space tick · `>` migrate to the next working day · `m` or `<` move to a date or
 week · `e` edit · `c` cancel/restore · `[`/`]` previous/next · `t` today · `w` week ·
-`f` future log · `v` meetings / meetings and tasks · `?` all shortcuts.
+`f` future log · `b` backlog · `s` settings · `v` meetings / meetings and tasks ·
+Enter on a meeting sets its category · `?` all shortcuts.
+
+## Features at a glance
+
+- **Week** (default: your meetings as a time grid; toggle to meetings and tasks) and **day** views.
+- **Tasks, notes and events** with automatic carry-over to the next working day.
+- **Backlog** for things you'll do some time, **Ongoing** for work in progress that isn't
+  tied to a day. Add to either from any add box; *Start* a backlog task when you're ready.
+- **Future log** for anything after this week, plus bank holidays and your leave.
+- **Meeting categories** in pastel colours for timesheets: click a meeting to set one;
+  every meeting with the same name follows. Manage, recolour and archive in Settings.
+- **Settings**: categories, working days, days off, start with Windows, backups
+  (one a day automatically, last 14 kept in `data\backups`).
 
 Tests: `py -m pip install -r requirements-dev.txt`, then `py -m pytest`.
 
@@ -56,6 +69,8 @@ Tests: `py -m pip install -r requirements-dev.txt`, then `py -m pytest`.
 | `bujo/holidays.py` | England & Wales bank holidays, calculated (works offline, any year) |
 | `bujo/db.py` | SQLite connection and versioned schema |
 | `bujo/journal.py` | Entries, done/cancel/move, carry-over |
+| `bujo/categories.py` | Meeting categories: names, colours, remembered by meeting name |
+| `bujo/backup.py`, `bujo/startup.py` | Daily backups; start at Windows login |
 | `bujo/calendar.py` | Outlook meetings: Power Automate JSON reader, local cache, sync |
 | `bujo/views.py` | What each screen shows (labels, trails, the fact line, Ahead) |
 | `bujo/web.py`, `bujo/templates/` | The web app: server-rendered pages, plain form posts |

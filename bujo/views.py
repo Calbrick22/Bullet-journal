@@ -3,11 +3,14 @@
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
-from . import calendar as calmod, dates, journal as j
+from . import backup, calendar as calmod, categories as catmod, dates, journal as j, startup
+from .categories import Category
 from .calendar import Meeting
 from .journal import Entry
 
 AHEAD_ROWS = 4
+DONE_VISIBLE = timedelta(days=7)   # ticked ongoing tasks stay visible this long
+LIST_TARGETS = [("l:ongoing", "Ongoing"), ("l:backlog", "Backlog")]
 NEXT_ROWS = 5            # the day view's preview of the next working day
 DAYS_OFF_HORIZON = 120   # how far ahead "Ahead" looks for days off
 FUTURE_HORIZON = 365     # how far ahead the future log looks for days off
@@ -122,9 +125,11 @@ class MeetingRow:
     height: int = 0
     lane: int = 0
     lanes: int = 1
+    category: Category | None = None
 
 
-def meeting_rows(meetings: list[Meeting], d: date, now: datetime) -> list[MeetingRow]:
+def meeting_rows(meetings: list[Meeting], d: date, now: datetime,
+                 cats: dict[str, Category | None] | None = None) -> list[MeetingRow]:
     out = []
     for m in meetings:
         if m.all_day:
@@ -135,7 +140,7 @@ def meeting_rows(meetings: list[Meeting], d: date, now: datetime) -> list[Meetin
             start = f"{s:%H:%M}" if s.date() == d else "…"
             end = f"{e:%H:%M}" if e.date() == d or (e.date() == d + timedelta(days=1) and e.hour == 0 and e.minute == 0) else "…"
             time = f"{start}–{end}"
-        out.append(MeetingRow(m, time, m.show_as, past=m.end <= now))
+        out.append(MeetingRow(m, time, m.show_as, past=m.end <= now, category=(cats or {}).get(m.id)))
     return out
 
 
@@ -319,13 +324,15 @@ def week_view(conn, key: str, today: date, now: datetime, show: str = "meetings"
     by_day, unplaced = j.entries_for_week(conn, key)
     cols = []
     all_meetings: list[Meeting] = []
+    on_day = {d: calmod.meetings_on(conn, d) for d in by_day}
+    cats = catmod.for_meetings(conn, list({m.id: m for ms in on_day.values() for m in ms}.values()))
     for d, es in by_day.items():
-        ms = calmod.meetings_on(conn, d)
+        ms = on_day[d]
         if not (d.weekday() in cal.working_weekdays or cal.is_working_day(d) or es or ms):
             continue
         all_meetings += [m for m in ms if m not in all_meetings]
         cols.append(DayCol(d, short_day(d), d == today, d < today, off_reason(cal, reasons, d),
-                           rows_for(conn, es, d, today, cal), meeting_rows(ms, d, now), booked_minutes(ms)))
+                           rows_for(conn, es, d, today, cal), meeting_rows(ms, d, now, cats), booked_minutes(ms)))
     monday = dates.week_monday(key)
     is_current = key == dates.week_key(today)
     year, number = dates.parse_week_key(key)
@@ -369,7 +376,7 @@ def week_view(conn, key: str, today: date, now: datetime, show: str = "meetings"
         "now_px": now_px,
     }
 
-    targets = [(f"d:{c.date.isoformat()}", c.label) for c in cols] + [(f"w:{key}", "No day yet")]
+    targets = [(f"d:{c.date.isoformat()}", c.label) for c in cols] + [(f"w:{key}", "No day yet")] + LIST_TARGETS
     default = f"d:{today.isoformat()}" if any(c.is_today for c in cols) else f"w:{key}"
     ahead_items = planned_after(conn, cal, key, today, DAYS_OFF_HORIZON)
     return {
@@ -413,9 +420,10 @@ def day_view(conn, d: date, today: date, now: datetime) -> dict:
         "prev_day": cal.previous_working_day(d), "next_day": nxt,
         "prev_label": short_day(cal.previous_working_day(d)), "next_label": short_day(nxt),
         "rows": rows, "unplaced": rows_for(conn, unplaced, d, today, cal),
-        "meetings": meeting_rows(ms, d, now),
+        "meetings": meeting_rows(ms, d, now, catmod.for_meetings(conn, ms)),
         "coming": rows_for(conn, coming, d)[:NEXT_ROWS], "coming_more": max(0, len(coming) - NEXT_ROWS),
-        "targets": [(f"d:{d.isoformat()}", short_day(d))], "default_target": f"d:{d.isoformat()}",
+        "ongoing": rows_for(conn, j.entries_in_list(conn, "ongoing", now - DONE_VISIBLE), d, today, cal),
+        "targets": [(f"d:{d.isoformat()}", short_day(d))] + LIST_TARGETS, "default_target": f"d:{d.isoformat()}",
         "phone_title": short_day(d),
     }
 
@@ -468,4 +476,78 @@ def future_view(conn, today: date) -> dict:
         "min_date": (today + timedelta(days=1)).isoformat(),
         "default_week": dates.shift_week(this_week, 1),
         "phone_title": "Future log",
+    }
+
+
+# --- Backlog and ongoing ------------------------------------------------------
+
+def backlog_view(conn, today: date, now: datetime) -> dict:
+    cal = j.load_calendar(conn)
+    ongoing = rows_for(conn, j.entries_in_list(conn, "ongoing"), today, today, cal)
+    backlog = rows_for(conn, j.entries_in_list(conn, "backlog"), today, today, cal)
+    finished = rows_for(conn, j.finished_from_lists(conn, now - timedelta(days=14)), today)
+    n_on = sum(1 for r in ongoing if r.e.state == "open")
+    return {
+        "title": "Backlog",
+        "facts": f"{n_on} ongoing · {len(backlog)} in the backlog",
+        "ongoing": ongoing, "backlog": backlog, "finished": finished,
+        "targets": [("l:backlog", "Backlog"), ("l:ongoing", "Ongoing"), (f"d:{today.isoformat()}", "Today")],
+        "default_target": "l:backlog",
+        "phone_title": "Backlog",
+    }
+
+
+# --- Settings -----------------------------------------------------------------
+
+WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+@dataclass
+class DayOffRun:
+    start: date
+    end: date
+    reason: str
+    days: int
+
+    @property
+    def label(self) -> str:
+        if self.start == self.end:
+            return day_month(self.start)
+        if self.start.month == self.end.month:
+            return f"{self.start.day}–{self.end.day} {self.end:%b}"
+        return f"{self.start.day} {self.start:%b} – {self.end.day} {self.end:%b}"
+
+
+def leave_runs(conn, today: date) -> list[DayOffRun]:
+    """Your own days off from today on, grouped into runs (bank holidays aren't listed)."""
+    rows = conn.execute(
+        "SELECT date, reason FROM day_overrides WHERE working = 0 AND date >= ? ORDER BY date", (today.isoformat(),))
+    runs: list[DayOffRun] = []
+    for r in rows:
+        d = date.fromisoformat(r["date"])
+        last = runs[-1] if runs else None
+        if last and last.reason == r["reason"] and (d - last.end).days <= 3 and all(
+                (last.end + timedelta(days=i)).weekday() >= 5 for i in range(1, (d - last.end).days)):
+            last.end, last.days = d, last.days + 1
+        else:
+            runs.append(DayOffRun(d, d, r["reason"], 1))
+    return runs
+
+
+def settings_view(conn, today: date, db_path) -> dict:
+    cal = j.load_calendar(conn)
+    backups = backup.list_backups(db_path)
+    return {
+        "title": "Settings",
+        "facts": "Categories, working days, days off and backups",
+        "categories": catmod.all_categories(conn, include_archived=False),
+        "archived": [c for c in catmod.all_categories(conn) if c.archived],
+        "palette": catmod.PALETTE,
+        "weekdays": [(i, WEEKDAY_NAMES[i], i in cal.working_weekdays) for i in range(7)],
+        "leave": leave_runs(conn, today),
+        "min_date": today.isoformat(),
+        "startup_available": startup.available(), "startup_on": startup.is_enabled(),
+        "backups": [(p.name, f"{p.stat().st_size / 1024:.0f} KB") for p in backups[:5]],
+        "backup_dir": str(backup.backup_dir(db_path)),
+        "phone_title": "Settings",
     }

@@ -57,6 +57,58 @@ MIGRATIONS = [
     );
     CREATE INDEX meetings_by_start ON meetings (start_utc);
     """,
+    # 3: entries can also live on a list (backlog / ongoing) instead of a day or week.
+    # SQLite can't change a CHECK constraint, so the table is rebuilt.
+    """
+    CREATE TABLE entries_new (
+        id            INTEGER PRIMARY KEY,
+        kind          TEXT NOT NULL CHECK (kind IN ('task', 'event', 'note')),
+        text          TEXT NOT NULL,
+        state         TEXT NOT NULL DEFAULT 'open'
+                      CHECK (state IN ('open', 'done', 'migrated', 'scheduled', 'cancelled')),
+        entry_date    TEXT,              -- local date YYYY-MM-DD
+        entry_week    TEXT,              -- ISO week '2026-W43' when no day yet
+        entry_list    TEXT CHECK (entry_list IN ('backlog', 'ongoing')),
+        position      INTEGER NOT NULL DEFAULT 0,
+        moved_from_id INTEGER UNIQUE REFERENCES entries(id),
+        origin_id     INTEGER REFERENCES entries(id),
+        carry_count   INTEGER NOT NULL DEFAULT 0,
+        created_at    TEXT NOT NULL,
+        updated_at    TEXT NOT NULL,
+        completed_at  TEXT,
+        CHECK ((entry_date IS NOT NULL) + (entry_week IS NOT NULL) + (entry_list IS NOT NULL) = 1)
+    );
+    INSERT INTO entries_new (id, kind, text, state, entry_date, entry_week, position, moved_from_id,
+                             origin_id, carry_count, created_at, updated_at, completed_at)
+        SELECT id, kind, text, state, entry_date, entry_week, position, moved_from_id,
+               origin_id, carry_count, created_at, updated_at, completed_at FROM entries;
+    DROP TABLE entries;
+    ALTER TABLE entries_new RENAME TO entries;
+    CREATE INDEX entries_by_date ON entries (entry_date, position);
+    CREATE INDEX entries_by_week ON entries (entry_week, position);
+    CREATE INDEX entries_by_list ON entries (entry_list, position);
+    CREATE INDEX entries_open ON entries (kind, state);
+    """,
+    # 4: meeting categories, for colouring meetings (and timesheets)
+    """
+    CREATE TABLE categories (
+        id       INTEGER PRIMARY KEY,
+        name     TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        colour   TEXT NOT NULL,          -- a palette key from tokens.css, e.g. 'mint'
+        archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
+        position INTEGER NOT NULL DEFAULT 0
+    );
+    -- "Remember by meeting name": every meeting with this subject gets the category
+    CREATE TABLE subject_categories (
+        subject_key TEXT PRIMARY KEY,    -- normalised subject (trimmed, lower case)
+        category_id INTEGER NOT NULL REFERENCES categories(id)
+    );
+    -- One occurrence set differently from its name's category (NULL = none for this one)
+    CREATE TABLE meeting_categories (
+        meeting_id  TEXT PRIMARY KEY,    -- Outlook id; not a foreign key, meetings are re-imported
+        category_id INTEGER REFERENCES categories(id)
+    );
+    """,
 ]
 
 
@@ -72,14 +124,38 @@ def connect(path: str | Path) -> sqlite3.Connection:
     return conn
 
 
+def _statements(sql: str) -> list[str]:
+    """Split a script into statements, safely: a ';' inside a comment or a
+    string doesn't end a statement (sqlite3.complete_statement decides)."""
+    out, buf = [], ""
+    for line in sql.splitlines(keepends=True):
+        buf += line
+        if sqlite3.complete_statement(buf):
+            if buf.strip():
+                out.append(buf)
+            buf = ""
+    if buf.strip() and not all(l.strip().startswith("--") or not l.strip() for l in buf.splitlines()):
+        raise ValueError(f"Unfinished SQL statement: {buf.strip()[:60]}")
+    return out
+
+
 def migrate(conn: sqlite3.Connection) -> None:
     version = conn.execute("PRAGMA user_version").fetchone()[0]
-    for i, sql in enumerate(MIGRATIONS[version:], start=version + 1):
-        with transaction(conn):
-            for statement in sql.split(";"):
-                if statement.strip():
+    if version >= len(MIGRATIONS):
+        return
+    # Table rebuilds need foreign keys off (it can only change outside a transaction);
+    # the check afterwards proves nothing was broken.
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        for i, sql in enumerate(MIGRATIONS[version:], start=version + 1):
+            with transaction(conn):
+                for statement in _statements(sql):
                     conn.execute(statement)
-            conn.execute(f"PRAGMA user_version = {i}")
+                if conn.execute("PRAGMA foreign_key_check").fetchall():
+                    raise sqlite3.IntegrityError(f"Migration {i} broke a link between entries")
+                conn.execute(f"PRAGMA user_version = {i}")
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
 
 
 class transaction:

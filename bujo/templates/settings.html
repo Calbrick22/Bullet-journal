@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="title-row">
+  <div>
+    <h1 class="greeting">{{ title }}</h1>
+    <p class="sub">{{ facts }}</p>
+  </div>
+</div>
+
+<section class="setting" id="categories" aria-labelledby="cat-h">
+  <div class="setting-label">
+    <h2 id="cat-h">Meeting categories</h2>
+    <p>Shade meetings by what they're for, to make your timesheet quicker. Click any meeting to set its category; every meeting with the same name follows.</p>
+  </div>
+  <div class="setting-panel">
+    {% if categories %}
+    <ul class="cat-list">
+      {% for c in categories %}
+      <li>
+        <form class="cat-row" method="post" action="/settings/categories/{{ c.id }}" data-inline>
+          <input type="hidden" name="next" value="{{ next }}">
+          <span class="swatch cat-{{ c.colour }}" aria-hidden="true" data-swatch></span>
+          <input class="input name" name="name" value="{{ c.name }}" required maxlength="40" aria-label="Name">
+          <select class="input" name="colour" aria-label="Colour" data-colour>
+            {% for key, label in palette.items() %}<option value="{{ key }}"{% if key == c.colour %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          <button class="btn" type="submit">Save</button>
+        </form>
+        <form method="post" action="/settings/categories/{{ c.id }}/archive" data-inline>
+          <input type="hidden" name="next" value="{{ next }}">
+          <button class="card-link plain" type="submit" title="Hide from the picker; meetings already tagged keep their colour">Archive</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="quiet">No categories yet. Add one below, e.g. a client, a project or "Internal".</p>
+    {% endif %}
+    <form class="cat-row add" method="post" action="/settings/categories" data-inline>
+      <input type="hidden" name="next" value="{{ next }}">
+      <span class="swatch cat-mint" aria-hidden="true" data-swatch></span>
+      <input class="input name" name="name" required maxlength="40" placeholder="New category name" aria-label="New category name">
+      <select class="input" name="colour" aria-label="Colour" data-colour>
+        {% for key, label in palette.items() %}<option value="{{ key }}"{% if key == "mint" %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <button class="btn primary" type="submit">Add</button>
+    </form>
+    {% if archived %}
+    <h3 class="sub-h">Archived</h3>
+    <ul class="cat-list archived">
+      {% for c in archived %}
+      <li>
+        <span class="swatch cat-{{ c.colour }}" aria-hidden="true"></span><span class="name">{{ c.name }}</span>
+        <form method="post" action="/settings/categories/{{ c.id }}/restore" data-inline>
+          <input type="hidden" name="next" value="{{ next }}">
+          <button class="card-link plain" type="submit">Restore</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+
+<section class="setting" id="days" aria-labelledby="days-h">
+  <div class="setting-label">
+    <h2 id="days-h">Working days</h2>
+    <p>Tasks carry over to your next working day, and the week shows these days. England and Wales bank holidays are already days off.</p>
+  </div>
+  <form class="setting-panel" method="post" action="/settings/weekdays" data-inline>
+    <input type="hidden" name="next" value="{{ next }}">
+    <fieldset class="weekdays">
+      <legend class="visually-hidden">Working days</legend>
+      {% for i, name, on in weekdays %}
+      <label><input type="checkbox" name="weekday" value="{{ i }}"{% if on %} checked{% endif %}> {{ name }}</label>
+      {% endfor %}
+    </fieldset>
+    <div class="panel-actions"><button class="btn" type="submit">Save</button></div>
+  </form>
+</section>
+
+<section class="setting" id="leave" aria-labelledby="leave-h">
+  <div class="setting-label">
+    <h2 id="leave-h">Days off</h2>
+    <p>Annual leave and other days away. Nothing carries over onto them, and they show in Ahead and the future log.</p>
+  </div>
+  <div class="setting-panel">
+    <form class="leave-form" method="post" action="/settings/leave" data-inline>
+      <input type="hidden" name="next" value="{{ next }}">
+      <label>From <input class="input" type="date" name="start" required min="{{ min_date }}"></label>
+      <label>to <input class="input" type="date" name="end" min="{{ min_date }}"></label>
+      <label class="grow">Reason <input class="input" name="reason" value="Annual leave" maxlength="60"></label>
+      <button class="btn primary" type="submit">Add</button>
+    </form>
+    {% if leave %}
+    <ul class="rows leave-list">
+      {% for run in leave %}
+      <li class="row">
+        <span class="when num">{{ run.label }}</span>
+        <span class="off-what">{{ run.reason }}</span>
+        <span class="pill">{{ run.days }} day{{ "s" if run.days != 1 }}</span>
+        <form method="post" action="/settings/leave/remove" data-inline>
+          <input type="hidden" name="next" value="{{ next }}">
+          <input type="hidden" name="start" value="{{ run.start.isoformat() }}">
+          <input type="hidden" name="end" value="{{ run.end.isoformat() }}">
+          <button class="card-link plain" type="submit">Remove</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="quiet">No days off booked.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="setting" id="startup" aria-labelledby="startup-h">
+  <div class="setting-label">
+    <h2 id="startup-h">Start with Windows</h2>
+    <p>Starts the journal when you log in and opens it in your browser. Double-clicking Start Journal later just opens the one already running.</p>
+  </div>
+  <form class="setting-panel" method="post" action="/settings/startup" data-inline>
+    <input type="hidden" name="next" value="{{ next }}">
+    {% if startup_available %}
+    <label class="switch-row"><input class="switch" type="checkbox" name="on" value="1"{% if startup_on %} checked{% endif %}> Start the journal when I log in</label>
+    <div class="panel-actions"><button class="btn" type="submit">Save</button></div>
+    {% else %}
+    <p class="quiet">Available when the journal runs on Windows.</p>
+    {% endif %}
+  </form>
+</section>
+
+<section class="setting" id="backups" aria-labelledby="backup-h">
+  <div class="setting-label">
+    <h2 id="backup-h">Backups</h2>
+    <p>A copy of your journal is made automatically each day it's opened, and the last 14 are kept in <span class="path">{{ backup_dir }}</span>.</p>
+  </div>
+  <div class="setting-panel">
+    {% if backups %}
+    <ul class="rows">
+      {% for name, size in backups %}<li class="row"><span class="num">{{ name }}</span><span class="meta">{{ size }}</span></li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="quiet">No backups yet.</p>
+    {% endif %}
+    <form method="post" action="/settings/backup" data-inline class="panel-actions">
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="btn" type="submit">Back up now</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

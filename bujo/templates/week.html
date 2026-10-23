@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import entry, meeting, composer %}
+{% from "_macros.html" import entry, meeting, meeting_attrs, meeting_class, composer %}
 {% block content %}
 <div class="title-row">
   <div>
@@ -38,9 +38,9 @@
     <ul class="track">
       {%- for h, label, top in grid.hours %}<li class="hour-line" style="top: {{ top }}px" aria-hidden="true"></li>{% endfor %}
       {%- for mr in d.meetings if not mr.m.all_day %}
-      <li class="meeting {{ mr.kind }}{% if mr.past %} past{% endif %}{% if mr.height < 44 %} short{% endif %}"
+      <li class="{{ meeting_class(mr) }}{% if mr.height < 44 %} short{% endif %}" {{ meeting_attrs(mr) }}
           style="top: {{ mr.top }}px; height: {{ mr.height }}px; --lane: {{ mr.lane }}; --lanes: {{ mr.lanes }}"
-          title="{{ mr.time }} {{ mr.m.subject }}{% if mr.m.location %}, {{ mr.m.location }}{% endif %}{% if mr.kind == 'tentative' %} (tentative){% endif %}">
+          title="{{ mr.time }} {{ mr.m.subject }}{% if mr.m.location %}, {{ mr.m.location }}{% endif %}{% if mr.kind == 'tentative' %} (tentative){% endif %} · {{ mr.category.name if mr.category else 'No category' }}">
         <span class="time num{% if mr.height < 44 %} visually-hidden{% endif %}">{{ mr.time }}</span> <span class="subject">{{ mr.m.subject }}</span>
         {%- if mr.height >= 64 and mr.m.location %}<span class="where">{{ mr.m.location }}</span>{% endif %}
       </li>

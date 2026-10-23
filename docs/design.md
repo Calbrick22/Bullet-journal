@@ -70,6 +70,21 @@ notes a **dash**. Every mark sits in the same fixed 16px slot, so text always li
 - **Meeting marks** (shape as well as fill): busy filled; tentative dashed edge; free /
   working elsewhere outline only; out of office a darker step.
 
+## Backlog, ongoing and categories (milestone 6)
+
+- **Ongoing** uses the "no day yet" tint (pale teal): it's work without a day. It sits on
+  the day view's side column and beside the Backlog, which is the screen's main block (8 + 4).
+- **Meeting categories** take one of eight pastels, each a fill, a one-step-darker edge
+  and dark text at about 7:1 or better: sky, mint, peach, butter, rose, sage, lime, aqua.
+  Peach and butter are a step deeper than a typical pastel, and lime replaced sand,
+  because the house rules ban yellow-cream backgrounds (hue 22–62°, lightness over 88%).
+  Untagged meetings are a neutral grey-blue, so they stand out at timesheet time.
+  Tentative keeps its dashed edge over a category. Past meetings keep their category
+  colour; untagged past meetings turn grey. The category name shows on roomy blocks
+  and in every block's tooltip and accessible name.
+- **Settings** follows the app-screen settings pattern: a 4-column label and help text
+  beside an 8-column panel, sections split by a rule, one Save per panel.
+
 ## Departures from the sheet
 
 - **No count tiles.** The home pattern's four KPI tiles are left out: the greeting's fact
@@ -78,6 +93,16 @@ notes a **dash**. Every mark sits in the same fixed 16px slot, so text always li
   48px. It drops to 28px on a phone.
 
 ## Gate log
+
+- Milestone 6 (`--demo`): `lint.mjs --app` 0 FAIL / 0 WARN. `inspect.mjs --app` at
+  1440/768/390 on all six screens: 0 FAIL. WARNs accepted: title size (all), day
+  `ragged-row` (independent lists), Backlog `hero-void` (the demo backlog is four items;
+  the screen fills as a real backlog grows). Fixed: cream-range category fills (peach,
+  butter, sand), Backlog layout (now backlog 8 + ongoing/finished 4, rows level), a lint
+  false alarm from the word "shadow" in a comment. In-browser: tag by name, per-meeting
+  override via Enter, Start from backlog (offers Today/Ongoing/next week/date/week),
+  add to backlog from the day view, category colour preview, add leave, b/s keys; no
+  console errors.
 
 - Milestone 4 (`--demo`, today pinned to Thu 22 Oct 09:00): `lint.mjs --app` 0 FAIL,
   1 WARN (dialog shadow, marked deliberate: dialogs float). `inspect.mjs --app` at

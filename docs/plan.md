@@ -22,4 +22,6 @@
 5. Calendar: ✅ JSON reader, local cache, meetings in week/day views (built early for the
    week toggle). Left: build the flow on your account (`docs/calendar.md`) and check
    it against a real export
-6. Settings (working days, leave), backup script, polish
+6. ✅ Settings (categories, working days, leave, start with Windows, backups); plus
+   requests: backlog + ongoing lists, meeting categories by name, start at login
+7. Next: check against a real Power Automate export; anything you notice in daily use

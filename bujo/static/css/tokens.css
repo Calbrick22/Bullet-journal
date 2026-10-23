@@ -34,9 +34,19 @@
   --accent: #1b6e66;
 
   /* journal tints: pale, each meaning one kind of thing, never decoration */
-  --meeting-bg: #eaf2f8;      /* Outlook meetings (read-only) */
-  --meeting-edge: #d5e4ef;
-  --meeting-ink: #1c4a6e;     /* 8.4:1 on --meeting-bg */
+  --meeting-bg: #edf0f3;      /* Outlook meetings with no category: neutral, so untagged ones stand out */
+  --meeting-edge: #d7dde4;
+  --meeting-ink: #24364a;
+
+  /* meeting categories: pastel fill, one-step-darker edge, dark ink (about 7:1 or more on the fill) */
+  --cat-sky-bg: #e1edfb;    --cat-sky-edge: #bcd5f2;    --cat-sky-ink: #1b4572;
+  --cat-mint-bg: #ddf3e8;   --cat-mint-edge: #b5e0cb;   --cat-mint-ink: #1a573f;
+  --cat-peach-bg: #f8d4bf;  --cat-peach-edge: #eab494;  --cat-peach-ink: #6b2e0f;
+  --cat-butter-bg: #f4e29c; --cat-butter-edge: #ddc565; --cat-butter-ink: #573f05;
+  --cat-rose-bg: #fbe1e8;   --cat-rose-edge: #f0bccc;   --cat-rose-ink: #7a2540;
+  --cat-sage-bg: #e5eedc;   --cat-sage-edge: #c7d8b6;   --cat-sage-ink: #3b5626;
+  --cat-lime-bg: #e6f2c4;   --cat-lime-edge: #c9df8c;   --cat-lime-ink: #42520e;
+  --cat-aqua-bg: #d9f0f2;   --cat-aqua-edge: #afdce1;   --cat-aqua-ink: #17555c;
   --unplaced-bg: #eaf4f1;     /* this week, no day yet */
   --unplaced-edge: #d3e8e2;
 

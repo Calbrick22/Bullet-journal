@@ -36,12 +36,12 @@
       <p class="quiet">No meetings</p>
       {% endif %}
     </section>
-    <section class="panel" aria-labelledby="coming-h">
-      <header><h2 id="coming-h">Next: <a href="/day/{{ next_day.isoformat() }}">{{ next_label }}</a></h2>{% if coming_more %}<span class="meta">{{ coming_more }} more</span>{% endif %}</header>
-      {% if coming %}
-      <ul class="entries">{% for r in coming %}{{ entry(r, next) }}{% endfor %}</ul>
+    <section class="panel ongoing" aria-labelledby="ongoing-h">
+      <header><h2 id="ongoing-h"><a href="/backlog">Ongoing</a></h2>{% if ongoing %}<span class="meta num">{{ ongoing | selectattr("e.state", "equalto", "open") | list | length }}</span>{% endif %}</header>
+      {% if ongoing %}
+      <ul class="entries">{% for r in ongoing %}{{ entry(r, next) }}{% endfor %}</ul>
       {% else %}
-      <p class="quiet">Nothing planned yet</p>
+      <p class="quiet">Nothing in progress. Add with "Ongoing" in the box above, or start something from the <a href="/backlog">backlog</a>.</p>
       {% endif %}
     </section>
     <section class="panel unplaced" aria-labelledby="unplaced-h">

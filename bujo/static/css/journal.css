@@ -183,7 +183,7 @@
 .meeting.free, .meeting.workingelsewhere { background: var(--raised); }
 .meeting.oof { background: var(--meeting-edge); }
 .meeting.all-day { padding-top: 3px; padding-bottom: 3px; }
-.meeting.past { background: var(--surface); border-color: var(--border); color: var(--muted); }
+.meeting.past:not(.cat) { background: var(--surface); border-color: var(--border); color: var(--muted); }
 .meetings-only .meetings { gap: 8px; }
 .meetings-only .meeting { padding: 8px 12px; }
 .meetings-only .meeting .subject { font-size: var(--fs-body); line-height: 20px; }
@@ -201,7 +201,7 @@
 .keys-link { width: 100%; border: 0; background: none; font: inherit; cursor: pointer; text-align: left; }
 .sync.problem { color: var(--warning); }
 
-/* dialogs float, so they may cast a shadow */
+/* dialogs float above the page: a real overlay */
 dialog.sheet { width: min(480px, calc(100vw - 32px)); padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--ground); color: var(--text); box-shadow: var(--shadow-float); } /* taste-skill-ignore: dialogs float */
 dialog.sheet::backdrop { background: var(--backdrop); }
 dialog.sheet h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; overflow-wrap: anywhere; }
@@ -281,4 +281,80 @@ kbd { display: inline-block; min-width: 20px; padding: 0 5px; border: 1px solid 
 @media (max-width: 640px) {
   .timegrid { display: none; }
   .meetings-only { display: grid; }
+}
+
+/* ---------- meeting categories ----------
+   A category replaces the neutral meeting fill with its pastel. Edges still say the kind
+   (tentative stays dashed), and past meetings keep their category colour for timesheets. */
+.meeting.cat-sky, .swatch.cat-sky { background: var(--cat-sky-bg); border-color: var(--cat-sky-edge); color: var(--cat-sky-ink); }
+.meeting.cat-mint, .swatch.cat-mint { background: var(--cat-mint-bg); border-color: var(--cat-mint-edge); color: var(--cat-mint-ink); }
+.meeting.cat-peach, .swatch.cat-peach { background: var(--cat-peach-bg); border-color: var(--cat-peach-edge); color: var(--cat-peach-ink); }
+.meeting.cat-butter, .swatch.cat-butter { background: var(--cat-butter-bg); border-color: var(--cat-butter-edge); color: var(--cat-butter-ink); }
+.meeting.cat-rose, .swatch.cat-rose { background: var(--cat-rose-bg); border-color: var(--cat-rose-edge); color: var(--cat-rose-ink); }
+.meeting.cat-sage, .swatch.cat-sage { background: var(--cat-sage-bg); border-color: var(--cat-sage-edge); color: var(--cat-sage-ink); }
+.meeting.cat-lime, .swatch.cat-lime { background: var(--cat-lime-bg); border-color: var(--cat-lime-edge); color: var(--cat-lime-ink); }
+.meeting.cat-aqua, .swatch.cat-aqua { background: var(--cat-aqua-bg); border-color: var(--cat-aqua-edge); color: var(--cat-aqua-ink); }
+.meeting[data-meeting] { cursor: pointer; transition: border-color var(--t-hover) ease; }
+.meeting[data-meeting]:hover { border-color: currentColor; }
+.meeting[data-meeting]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; z-index: 3; }
+.meeting .cat-name { font-weight: 500; }
+.swatch { display: inline-block; flex: none; width: 16px; height: 16px; border-radius: 50%; border: 1px solid; }
+.swatch.none { background: var(--ground); border: 1.5px dashed var(--tick-edge); }
+.swatches label { gap: 10px; }
+label.check { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; color: var(--muted); }
+.dialog-actions .btn.ghost { margin-right: auto; padding-left: 0; }
+
+/* ---------- backlog: backlog 8 + side 4 -> 724 + 16 + 360 = 1100 ---------- */
+.backlog-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); align-items: start; }
+.backlog-side { grid-column: span 4; display: grid; gap: var(--gap); }
+.backlog-side .finished .entry .text { color: var(--muted); }
+.backlog-side .ongoing { background: var(--unplaced-bg); border-color: var(--unplaced-edge); }
+.backlog-grid .backlog { grid-column: span 8; }
+.backlog-grid .panel > header { margin-bottom: 4px; }
+.list-rows { gap: 0; }
+.list-rows .entry { grid-template-columns: 16px minmax(0, 1fr) auto; padding: 10px 0; line-height: 22px; }
+.list-rows .entry + .entry { border-top: 1px solid var(--rule); }
+.list-rows .tick { margin-top: 3px; }
+.day-side .panel.ongoing h2 a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- settings: a 4-column label beside an 8-column panel, sections split by a rule ---------- */
+.setting { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gap); padding: 32px 0; border-top: 1px solid var(--border); }
+.setting:first-of-type { border-top: 0; padding-top: 8px; }
+.setting-label { grid-column: span 4; padding-top: 6px; }
+.setting-label h2 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.setting-label p { color: var(--muted); max-width: 40ch; }
+.setting-label .path { overflow-wrap: anywhere; color: var(--text); }
+.setting-panel { grid-column: span 8; padding: 16px 20px; border-radius: var(--radius-card); background: var(--surface); }
+.sub-h { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 20px 0 8px; }
+.cat-list { display: grid; gap: 0; margin-bottom: 12px; }
+.cat-list li { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.cat-list li + li { border-top: 1px solid var(--rule); }
+.cat-list.archived .name { flex: 1; color: var(--muted); }
+.cat-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.cat-row .name { flex: 1; min-width: 0; height: 36px; }
+.cat-row select { width: auto; height: 36px; }
+.cat-row .btn { height: 36px; }
+.cat-row.add { padding-top: 12px; border-top: 1px solid var(--rule); }
+.weekdays { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; padding: 0; border: 0; }
+.weekdays label, .switch-row { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; }
+.weekdays input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); }
+.panel-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+.leave-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
+.leave-form label { display: grid; gap: 6px; color: var(--muted); }
+.leave-form .grow { flex: 1; min-width: 160px; }
+.leave-form .input { height: 36px; width: 100%; }
+.leave-list { margin-top: 12px; }
+.leave-list .row { gap: 12px; }
+.leave-list .when { width: 110px; flex: none; color: var(--muted); }
+
+@media (max-width: 1180px) {
+  .backlog-side, .backlog-grid .backlog { grid-column: 1 / -1; }
+  .setting-label { grid-column: span 12; }
+  .setting-panel { grid-column: span 12; }
+}
+@media (max-width: 640px) {
+  .cat-row { flex-wrap: wrap; }
+  .cat-row .name { flex-basis: calc(100% - 28px); }
+  .list-rows .entry { grid-template-columns: 16px minmax(0, 1fr); }
+  .list-rows .acts { grid-column: 2; }
 }

@@ -9,7 +9,8 @@ import json
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
-from . import dates, journal as j
+from . import categories as cats, dates, journal as j
+from .calendar import Meeting
 
 # Per weekday of the current week (0 = Monday): (kind, text, done_by_end_of_day)
 PLAN = {
@@ -70,6 +71,23 @@ def seed(conn, today: date) -> None:
     j.add_entry(conn, "task", "Book the dentist", on=next_monday + timedelta(days=10))
     for i in range(3):  # three days' leave in three weeks' time
         j.set_day_override(conn, monday + timedelta(weeks=3, days=i), working=False, reason="Annual leave")
+
+    for text in ("Tidy the team wiki", "Archive the 2025 project folders", "Draft onboarding guide v2",
+                 "Look into a better expenses template"):
+        j.add_entry(conn, "task", text, lst="backlog")
+    for text in ("Q4 budget model", "Supplier contract renewal"):
+        j.add_entry(conn, "task", text, lst="ongoing")
+    j.mark_done(conn, j.add_entry(conn, "task", "Update the team org chart", lst="ongoing").id)
+
+    # Meeting categories, remembered by meeting name
+    atlas, internal, hiring = (cats.add(conn, "Project Atlas", "mint"), cats.add(conn, "Internal", "lime"),
+                               cats.add(conn, "Hiring", "rose"))
+    old = cats.add(conn, "Brightline pilot", "peach")
+    cats.set_archived(conn, old.id, True)
+    stamp = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    for subject, cat in (("Weekly ops stand-up", internal), ("Q4 planning", atlas), ("Ops review", atlas),
+                         ("Vendor demo: Fieldline", atlas), ("Hiring sync", hiring), ("1:1 with Hannah", internal)):
+        cats.tag(conn, Meeting("demo-seed", subject, stamp, stamp), cat.id)
 
 
 # Meetings per weekday: (start, end, subject, location, showAs). Repeated each week.

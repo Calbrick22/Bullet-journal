@@ -54,6 +54,8 @@ document.addEventListener("submit", async (ev) => {
     const sel = f.querySelector("select[name=target]");
     if (sel && target) sel.value = target;
     f.querySelector("input[name=text]").focus();
+  } else if (form.dataset.meeting) {
+    $(`[data-meeting="${CSS.escape(form.dataset.meeting)}"]`)?.focus();
   } else if (focusId && document.getElementById(focusId)) {
     document.getElementById(focusId).focus();
   } else if (entryId) {
@@ -71,8 +73,35 @@ function openMove(li) {
   form.reset();
   d.querySelector('[data-fill="text"]').textContent = `“${li.dataset.text}”`;
   d.querySelector('[data-fill="forward"]').textContent = li.dataset.forward ? `(${li.dataset.forward})` : "";
+  // Only offer moves that make sense from where the task is now.
+  const where = li.dataset.where;
+  const onToday = li.dataset.date && li.dataset.date === document.body.dataset.today;
+  const show = {
+    "not-today": !onToday,
+    "not-ongoing": where !== "ongoing",
+    "not-backlog": where !== "backlog",
+    dated: where === "day" || where === "week",
+  };
+  for (const label of $$("[data-show]", d)) label.hidden = !show[label.dataset.show];
+  const first = $$("input[name=to]", d).find((r) => !r.closest("label").hidden);
+  first.checked = true;
   d.showModal();
-  d.querySelector("input[name=to]:checked").focus();
+  first.focus();
+}
+
+function openCategory(el) {
+  const d = $("#category-dialog");
+  const form = d.querySelector("form");
+  form.action = `/meetings/${encodeURIComponent(el.dataset.meeting)}/category`;
+  delete form.dataset.entry;
+  form.dataset.meeting = el.dataset.meeting;
+  d.querySelector('[data-fill="subject"]').textContent = `“${el.dataset.subject}”`;
+  const radios = $$("input[name=category]", d);
+  for (const r of radios) r.checked = r.value === (el.dataset.cat || "");
+  const only = d.querySelector("input[name=only_this]");
+  if (only) only.checked = false;
+  d.showModal();
+  (radios.find((r) => r.checked) || radios[0] || d.querySelector("[data-close]")).focus();
 }
 
 function openEdit(li) {
@@ -86,16 +115,22 @@ function openEdit(li) {
   input.select();
 }
 
-// Picking a date or week selects its option.
+// Picking a date or week selects its option; picking a colour updates its swatch.
 document.addEventListener("input", (ev) => {
   const pick = ev.target.dataset?.pick;
   if (pick) ev.target.closest("label").querySelector("input[name=to]").checked = true;
+  if (ev.target.matches("[data-colour]")) {
+    const sw = ev.target.closest("form").querySelector("[data-swatch]");
+    sw.className = `swatch cat-${ev.target.value}`;
+  }
 });
 
 document.addEventListener("click", (ev) => {
   const t = ev.target;
   if (t.closest("[data-close]")) return t.closest("dialog").close();
   if (t.closest("[data-keys]")) return $("#keys-dialog").showModal();
+  const mtg = t.closest("[data-meeting]");
+  if (mtg && !t.closest("dialog")) return openCategory(mtg);
   const act = t.closest("[data-act]");
   if (act) {
     const li = act.closest("li.entry");
@@ -164,9 +199,16 @@ document.addEventListener("keydown", (ev) => {
     t: () => go("[data-go=t]"),
     w: () => go("[data-go=w]"),
     f: () => go("[data-go=f]"),
+    b: () => go("[data-go=b]"),
+    s: () => go("[data-go=s]"),
     v: () => go("a[data-toggle-view]"),
     "?": () => $("#keys-dialog").showModal(),
   };
+  const mtg = ev.target.closest?.("[data-meeting]");
+  if (mtg && (ev.key === "Enter" || ev.key === " ")) {
+    ev.preventDefault();
+    return openCategory(mtg);
+  }
   const fn = keys[ev.key];
   // Space on a focused button or link keeps its normal meaning (the tick box ticks itself)
   if (!fn || (ev.key === " " && (!li || ev.target.closest("button, a")))) return;
